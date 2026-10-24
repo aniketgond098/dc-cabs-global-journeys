@@ -9,7 +9,7 @@ import { btn } from "./ui";
 export function Logo({ className }: { className?: string }) {
   return (
     <img
-      src={logo.url}
+      src={logo}
       alt="DC Cabs"
       width={402}
       height={132}
