@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import corporate from "@/assets/corporate.jpg";
-import chauffeur from "@/assets/chauffeur.jpg";
 import luxury from "@/assets/fleet-luxury.jpg";
 import coach from "@/assets/fleet-coach.jpg";
 import hero from "@/assets/hero.jpg";
@@ -23,8 +22,8 @@ export const Route = createFileRoute("/corporate-mobility")({
   component: Corporate,
 });
 
-const corpServices = [
-  { title: "Airport Transfers", body: "Executive meet-and-greet pickups and drops, timed to every arrival.", image: chauffeur },
+const corpServices: { title: string; body: string; image?: string }[] = [
+  { title: "Airport Transfers", body: "Executive meet-and-greet pickups and drops, timed to every arrival.", },
   { title: "Executive Travel", body: "C-suite and senior leadership movement in premium sedans and SUVs.", image: luxury },
   { title: "Corporate Daily Mobility", body: "Daily employee and guest travel with real-time dispatch and automated billing.", image: corporate },
   { title: "VIP Transportation", body: "Discreet, punctual movement for dignitaries and high-profile guests.", image: hero },

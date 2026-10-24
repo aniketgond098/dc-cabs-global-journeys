@@ -3,6 +3,7 @@ import taj from "@/assets/tour-taj.jpg";
 import { Reveal } from "@/components/site/Reveal";
 import { ClosingCTA, CTALink, PageHero } from "@/components/site/ui";
 import { tours } from "@/content/site";
+import { IndiaNetwork } from "@/components/site/sections";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/india-tours")({
@@ -28,7 +29,11 @@ function Tours() {
         <section key={t.title} className="border-b border-border">
           <div className={cn("grid lg:grid-cols-2", i % 2 === 1 && "lg:[&>*:first-child]:order-2")}>
             <div className="group relative aspect-[4/3] overflow-hidden lg:aspect-auto lg:min-h-[80vh]">
-              <img src={t.image} alt={t.title} loading={i ? "lazy" : "eager"} className="absolute inset-0 size-full object-cover transition-transform duration-[1600ms] group-hover:scale-105" />
+              {t.image ? (
+                <img src={t.image} alt={t.title} loading={i ? "lazy" : "eager"} className="absolute inset-0 size-full object-cover transition-transform duration-[1600ms] group-hover:scale-105" />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-charcoal p-8"><div className="w-full max-w-md"><IndiaNetwork /></div></div>
+              )}
             </div>
             <div className="flex items-center px-5 py-16 md:px-16 lg:px-24">
               <Reveal>

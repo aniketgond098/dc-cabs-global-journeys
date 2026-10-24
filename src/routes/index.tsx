@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import hero from "@/assets/hero.jpg";
-import chauffeur from "@/assets/chauffeur.jpg";
+import { JourneyTrace } from "@/components/site/JourneyTrace";
 import { Reveal } from "@/components/site/Reveal";
 import { ClosingCTA, CTALink, SectionHeading } from "@/components/site/ui";
 import { Differentiators, FleetPreview, IndiaNetwork, ServiceList, StatsSection, WorldNetwork } from "@/components/site/sections";
@@ -64,8 +64,8 @@ function Home() {
               <CTALink to="/about" variant="ghost">About DC Cabs</CTALink>
             </Reveal>
           </div>
-          <Reveal delay={100} className="relative aspect-[4/5] overflow-hidden">
-            <img src={chauffeur} alt="DC Cabs chauffeur at an airport arrivals curb" loading="lazy" width={1200} height={1504} className="size-full object-cover" />
+          <Reveal delay={100} className="aspect-[4/5]">
+            <JourneyTrace />
           </Reveal>
         </div>
       </section>
@@ -146,7 +146,7 @@ function Home() {
               <Reveal key={t.title} delay={i * 100} className="group">
                 <Link to="/india-tours" className="block">
                   <div className="aspect-[3/4] overflow-hidden">
-                    <img src={t.image} alt={t.title} loading="lazy" className="size-full object-cover transition-transform duration-[1400ms] group-hover:scale-105" />
+                    <img src={t.image ?? ""} alt={t.title} loading="lazy" className="size-full object-cover transition-transform duration-[1400ms] group-hover:scale-105" />
                   </div>
                   <h3 className="font-display mt-6 text-2xl font-bold uppercase">{t.title}</h3>
                   <p className="mt-2 text-muted-foreground">{t.body}</p>

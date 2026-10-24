@@ -2,7 +2,6 @@ import sedan from "@/assets/fleet-sedan.jpg";
 import suv from "@/assets/fleet-suv.jpg";
 import luxury from "@/assets/fleet-luxury.jpg";
 import coach from "@/assets/fleet-coach.jpg";
-import chauffeur from "@/assets/chauffeur.jpg";
 import corporate from "@/assets/corporate.jpg";
 import taj from "@/assets/tour-taj.jpg";
 import kerala from "@/assets/tour-kerala.jpg";
@@ -43,8 +42,8 @@ export const stats = [
   { text: "Verified", label: "Chauffeurs" },
 ];
 
-export const services = [
-  { title: "Executive Airport Transfers", body: "Met on arrival, moved without friction — punctual pickups timed to every flight.", image: chauffeur },
+export const services: { title: string; body: string; image?: string }[] = [
+  { title: "Executive Airport Transfers", body: "Met on arrival, moved without friction — punctual pickups timed to every flight.", },
   { title: "Chauffeur-Driven Mobility", body: "Trained, uniformed, English-speaking chauffeurs for every hour of the itinerary.", image: luxury },
   { title: "Corporate Travel", body: "Daily corporate movement and outstation travel, coordinated with real-time dispatch.", image: corporate },
   { title: "VIP & Luxury Transportation", body: "Premium sedans and SUVs for C-suite executives, dignitaries and high-profile guests.", image: hero },
@@ -160,12 +159,12 @@ export const differentiators = [
   { title: "Modern Tech-Enabled Fleet", body: "GPS tracking, 24/7 operations support, real-time dispatch and automated billing for punctual, transparent movements." },
 ];
 
-export const tours = [
+export const tours: { title: string; body: string; image?: string }[] = [
   { title: "Golden Triangle", body: "Delhi, Agra and Jaipur — India's classic circuit, paced around your guests.", image: taj },
   { title: "Leisure Journeys", body: "Unhurried travel through coastlines, hill stations and backwaters.", image: kerala },
   { title: "Corporate Retreats", body: "Offsites and incentive travel with every transfer coordinated.", image: coach },
   { title: "Holiday Itineraries", body: "Family and group holidays shaped around the way you like to travel.", image: hero },
-  { title: "Sightseeing", body: "City and heritage sightseeing with chauffeurs who know the route.", image: chauffeur },
+  { title: "Sightseeing", body: "City and heritage sightseeing with chauffeurs who know the route.", },
   { title: "Customized Itineraries", body: "Tell us the brief. We design the journey, end to end.", image: europe },
 ];
 
