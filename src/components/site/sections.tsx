@@ -88,7 +88,7 @@ export function ServiceList({ items = services }: { items?: { title: string; bod
           </li>
         ))}
       </ul>
-      <div className="relative hidden aspect-[4/5] overflow-hidden lg:block">
+      <div className="relative hidden aspect-[4/5] overflow-hidden lg:sticky lg:top-24 lg:block lg:self-start">
         {items.map((s, i) => (
           <img
             key={s.title}
