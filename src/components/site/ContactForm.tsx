@@ -1,0 +1,105 @@
+import { useState, type FormEvent } from "react";
+import { z } from "zod";
+import { contact, requirementTypes, whatsappWith } from "@/content/site";
+import { cn } from "@/lib/utils";
+import { btn } from "./ui";
+
+const schema = z.object({
+  name: z.string().trim().min(1, "Please enter your name").max(100),
+  company: z.string().trim().max(120).optional(),
+  email: z.string().trim().email("Please enter a valid email").max(255),
+  phone: z.string().trim().min(6, "Please enter a phone number").max(25),
+  type: z.string().min(1, "Please choose a requirement"),
+  route: z.string().trim().max(200).optional(),
+  date: z.string().max(20).optional(),
+  travelers: z.string().max(6).optional(),
+  message: z.string().trim().max(1500).optional(),
+});
+
+const field =
+  "w-full border-0 border-b border-hairline bg-transparent px-0 py-3 text-base text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none focus:ring-0";
+
+export function ContactForm({ defaultType = "" }: { defaultType?: string }) {
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [sent, setSent] = useState<string | null>(null);
+
+  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
+    const r = schema.safeParse(data);
+    if (!r.success) {
+      const errs: Record<string, string> = {};
+      r.error.issues.forEach((i) => (errs[String(i.path[0])] = i.message));
+      setErrors(errs);
+      return;
+    }
+    setErrors({});
+    const v = r.data;
+    const text = [
+      `New enquiry — DC Cabs`,
+      `Name: ${v.name}`,
+      v.company && `Company: ${v.company}`,
+      `Email: ${v.email}`,
+      `Phone: ${v.phone}`,
+      `Requirement: ${v.type}`,
+      v.route && `Pickup / Destination: ${v.route}`,
+      v.date && `Travel date: ${v.date}`,
+      v.travelers && `Travelers: ${v.travelers}`,
+      v.message && `Message: ${v.message}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    setSent(text);
+    window.open(whatsappWith(text), "_blank", "noopener");
+  };
+
+  if (sent) {
+    return (
+      <div className="border border-hairline p-8 md:p-12">
+        <p className="eyebrow text-primary">Enquiry ready</p>
+        <h3 className="font-display mt-4 text-4xl font-bold uppercase">Thank you.</h3>
+        <p className="mt-4 max-w-md text-muted-foreground">
+          We've opened WhatsApp with your enquiry filled in — just press send. Prefer email? Send the same details to our bookings desk.
+        </p>
+        <div className="mt-8 flex flex-wrap gap-4">
+          <a href={whatsappWith(sent)} target="_blank" rel="noreferrer" className={btn.primary}>Open WhatsApp again</a>
+          <a href={`mailto:${contact.email}?subject=${encodeURIComponent("Enquiry — DC Cabs")}&body=${encodeURIComponent(sent)}`} className={btn.outline}>Send by email</a>
+        </div>
+        <button type="button" onClick={() => setSent(null)} className="mt-8 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+          Start a new enquiry
+        </button>
+      </div>
+    );
+  }
+
+  const F = ({ name, label, children, className }: { name: string; label: string; children: React.ReactNode; className?: string }) => (
+    <label className={cn("block", className)}>
+      <span className="eyebrow">{label}</span>
+      {children}
+      {errors[name] && <span className="mt-2 block text-sm text-destructive">{errors[name]}</span>}
+    </label>
+  );
+
+  return (
+    <form onSubmit={onSubmit} noValidate className="grid gap-x-8 gap-y-8 sm:grid-cols-2">
+      <F name="name" label="Name *"><input name="name" autoComplete="name" className={field} placeholder="Your full name" /></F>
+      <F name="company" label="Company"><input name="company" autoComplete="organization" className={field} placeholder="Company / agency" /></F>
+      <F name="email" label="Email *"><input name="email" type="email" autoComplete="email" className={field} placeholder="you@company.com" /></F>
+      <F name="phone" label="Phone *"><input name="phone" type="tel" autoComplete="tel" className={field} placeholder="+91 / international" /></F>
+      <F name="type" label="Requirement type *" className="sm:col-span-2">
+        <select name="type" defaultValue={requirementTypes.includes(defaultType) ? defaultType : ""} className={cn(field, "bg-background")}>
+          <option value="" disabled>Select a requirement</option>
+          {requirementTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </F>
+      <F name="route" label="Pickup / Destination" className="sm:col-span-2"><input name="route" className={field} placeholder="e.g. Delhi airport → Agra → Jaipur, or Dubai" /></F>
+      <F name="date" label="Travel date"><input name="date" type="date" className={cn(field, "[color-scheme:dark]")} /></F>
+      <F name="travelers" label="Number of travelers"><input name="travelers" type="number" min={1} inputMode="numeric" className={field} placeholder="e.g. 12" /></F>
+      <F name="message" label="Message" className="sm:col-span-2"><textarea name="message" rows={4} className={cn(field, "resize-none")} placeholder="Tell us about the journey, guests and any special requirements" /></F>
+      <div className="sm:col-span-2">
+        <button type="submit" className={cn(btn.primary, "w-full sm:w-auto")}>Send enquiry</button>
+        <p className="mt-4 text-xs text-muted-foreground">Your enquiry opens in WhatsApp, addressed to our operations & sales team.</p>
+      </div>
+    </form>
+  );
+}
