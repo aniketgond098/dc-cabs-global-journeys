@@ -39,7 +39,7 @@ export function Navbar() {
     <header
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-all duration-500",
-        scrolled || open ? "border-b border-border bg-background/85 backdrop-blur-xl" : "bg-transparent",
+        open ? "border-b border-border bg-background" : scrolled ? "border-b border-border bg-background/85 backdrop-blur-xl" : "bg-transparent",
       )}
     >
       <div className={cn("container-x flex items-center justify-between transition-all duration-500", scrolled ? "h-16" : "h-24")}>
@@ -84,11 +84,11 @@ export function Navbar() {
           open ? "visible opacity-100" : "invisible opacity-0",
         )}
       >
-        <nav className="container-x flex h-full flex-col justify-between py-10" aria-label="Mobile">
+        <nav className="container-x flex h-full flex-col justify-between gap-10 overflow-y-auto py-8" aria-label="Mobile">
           <ul className="space-y-1">
             {nav.map((n, i) => (
               <li key={n.to} className={cn("transition-all duration-500", open ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0")} style={{ transitionDelay: `${i * 40}ms` }}>
-                <Link to={n.to} className="font-display block py-2 text-4xl font-bold uppercase text-foreground/80 hover:text-primary">
+                <Link to={n.to} className="font-display block py-2.5 text-3xl !leading-tight sm:text-4xl font-bold uppercase text-foreground/80 hover:text-primary">
                   {n.label}
                 </Link>
               </li>
