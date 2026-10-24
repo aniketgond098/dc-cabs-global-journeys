@@ -66,7 +66,7 @@ export function ContactForm({ defaultType = "" }: { defaultType?: string }) {
   if (sent) {
     return (
       <div className="border border-hairline p-8 md:p-12">
-        <p className="eyebrow text-primary">Enquiry ready</p>
+        <p className="eyebrow text-primary-tint">Enquiry ready</p>
         <h3 className="font-display mt-4 text-4xl font-bold uppercase">Thank you.</h3>
         <p className="mt-4 max-w-md text-muted-foreground">
           We've opened WhatsApp with your enquiry filled in — just press send. Prefer email? Send the same details to our bookings desk.
