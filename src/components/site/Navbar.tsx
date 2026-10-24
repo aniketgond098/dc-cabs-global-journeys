@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import logo from "@/assets/dc-cabs-logo.jpg.asset.json";
+import logo from "@/assets/dc-cabs-logo.png.asset.json";
 import { contact, nav } from "@/content/site";
 import { cn } from "@/lib/utils";
 import { btn } from "./ui";
@@ -11,10 +11,9 @@ export function Logo({ className }: { className?: string }) {
     <img
       src={logo.url}
       alt="DC Cabs"
-      width={500}
-      height={500}
-      className={cn("object-cover mix-blend-lighten", className)}
-      style={{ objectPosition: "50% 50%" }}
+      width={402}
+      height={132}
+      className={cn("h-auto w-full", className)}
     />
   );
 }
@@ -44,8 +43,8 @@ export function Navbar() {
       )}
     >
       <div className={cn("container-x flex items-center justify-between transition-all duration-500", scrolled ? "h-16" : "h-24")}>
-        <Link to="/" aria-label="DC Cabs home" className="relative block h-full w-36 overflow-hidden">
-          <Logo className="absolute left-1/2 top-1/2 h-[230%] w-auto max-w-none -translate-x-1/2 -translate-y-1/2" />
+        <Link to="/" aria-label="DC Cabs home" className={cn("block transition-all duration-500", scrolled ? "w-32" : "w-40 md:w-44")}>
+          <Logo />
         </Link>
 
         <nav className="hidden items-center gap-8 xl:flex" aria-label="Main">

@@ -7,9 +7,7 @@ export function Footer() {
     <footer className="border-t border-border bg-background">
       <div className="container-x grid gap-14 py-20 md:grid-cols-12">
         <div className="md:col-span-5">
-          <div className="relative h-24 w-48 overflow-hidden">
-            <Logo className="absolute left-1/2 top-1/2 h-[230%] w-auto max-w-none -translate-x-1/2 -translate-y-1/2" />
-          </div>
+          <Logo className="w-52" />
           <p className="font-display mt-6 max-w-sm text-2xl font-bold uppercase">
             Pan-India & International <br />
             <span className="text-muted-foreground">Corporate Mobility & Travel Solutions</span>
