@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import logo from "@/assets/dc-cabs-logo.png.asset.json";
+import logo from "@/assets/dc-cabs-logo.png";
 import { contact, nav } from "@/content/site";
 import { cn } from "@/lib/utils";
 import { btn } from "./ui";
@@ -9,7 +9,7 @@ import { btn } from "./ui";
 export function Logo({ className }: { className?: string }) {
   return (
     <img
-      src={logo.url}
+      src={logo}
       alt="DC Cabs"
       width={402}
       height={132}

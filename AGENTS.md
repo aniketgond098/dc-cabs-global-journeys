@@ -13,3 +13,4 @@
 - All site copy, contact details, fleet, cities and destinations live in `src/content/site.ts`; pages only render it — keeps facts in one auditable place.
 - Enquiry form has no backend: it validates and opens WhatsApp (email fallback) with the details — the site is a lead-gen brochure, no Cloud needed.
 - Never add stats, prices, specs, testimonials or claims not in the client's company material — client requirement for factual accuracy.
+- No `lovable-assets` pointers or `/__l5e/` URLs: the user self-hosts via GitHub pushes, so every image must be a regular file imported from `src/assets` (or `public/`) — Lovable CDN paths don't exist on their host.
