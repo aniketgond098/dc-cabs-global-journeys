@@ -36,7 +36,7 @@ function FleetPage() {
                     <li key={m} className="border-b border-border py-3 text-lg">{m}</li>
                   ))}
                 </ul>
-                <p className="eyebrow mt-8 text-primary">Ideal for</p>
+                <p className="eyebrow mt-8 text-primary-tint">Ideal for</p>
                 <p className="mt-2 text-muted-foreground">{c.use}</p>
                 <CTALink to="/contact" search={{ type: "Other", vehicle: c.name }} variant="outline" className="mt-10">Enquire for this category</CTALink>
               </Reveal>

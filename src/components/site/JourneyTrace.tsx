@@ -43,7 +43,7 @@ export function JourneyTrace({ className }: { className?: string }) {
             className={cn("border-l border-primary/60 bg-background/80 py-2 pl-4 pr-2 backdrop-blur-sm transition-all duration-700", inView ? "translate-x-0 opacity-100" : "translate-x-6 opacity-0")}
             style={{ transitionDelay: `${400 + i * 250}ms` }}
           >
-            <p className="text-xs font-semibold tabular-nums text-primary">0{i + 1}</p>
+            <p className="text-sm font-bold tabular-nums text-primary-tint">0{i + 1}</p>
             <p className="text-sm font-semibold text-foreground">{s.k}</p>
             <p className="text-xs text-muted-foreground">{s.v}</p>
           </li>

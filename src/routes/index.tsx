@@ -95,7 +95,7 @@ function Home() {
           <div>
             <SectionHeading eyebrow="Pan-India presence" title={<>45+ cities. <span className="text-foreground/40">One connected network.</span></>} />
             <Reveal delay={150} className="mt-12">
-              <p className="eyebrow mb-4 text-primary">Key service hubs</p>
+              <p className="eyebrow mb-4 text-primary-tint">Key service hubs</p>
               <p className="text-xl leading-relaxed text-foreground">{keyHubs.join(" · ")}</p>
               <p className="eyebrow mb-4 mt-10">Extended network</p>
               <p className="leading-relaxed text-muted-foreground">{extendedNetwork.join(" · ")} · +20 more locations</p>
