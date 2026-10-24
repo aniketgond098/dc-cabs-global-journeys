@@ -5,6 +5,7 @@ import { fleet, indiaCities, services, stats, worldDestinations, differentiators
 import { cn } from "@/lib/utils";
 import { Reveal, useInView } from "./Reveal";
 import { CTALink } from "./ui";
+import { JourneyTrace } from "./JourneyTrace";
 
 function Counter({ to, run }: { to: number; run: boolean }) {
   const [n, setN] = useState(0);
@@ -58,7 +59,7 @@ export function StatsSection() {
   );
 }
 
-export function ServiceList({ items = services }: { items?: { title: string; body: string; image: string }[] }) {
+export function ServiceList({ items = services }: { items?: { title: string; body: string; image?: string | undefined }[] }) {
   const [active, setActive] = useState(0);
   return (
     <div className="grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:gap-16">
@@ -89,7 +90,7 @@ export function ServiceList({ items = services }: { items?: { title: string; bod
         ))}
       </ul>
       <div className="relative hidden aspect-[4/5] overflow-hidden lg:sticky lg:top-24 lg:block lg:self-start">
-        {items.map((s, i) => (
+        {items.map((s, i) => s.image ? (
           <img
             key={s.title}
             src={s.image}
@@ -97,6 +98,10 @@ export function ServiceList({ items = services }: { items?: { title: string; bod
             loading="lazy"
             className={cn("absolute inset-0 size-full object-cover transition-all duration-1000", active === i ? "scale-100 opacity-100" : "scale-105 opacity-0")}
           />
+        ) : (
+          <div key={s.title} className={cn("absolute inset-0 transition-opacity duration-1000", active === i ? "opacity-100" : "pointer-events-none opacity-0")}>
+            <JourneyTrace className="border-0" />
+          </div>
         ))}
         <div className="bg-scrim absolute inset-0" />
       </div>

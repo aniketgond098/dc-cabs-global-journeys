@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import hero from "@/assets/hero.jpg";
-import chauffeur from "@/assets/chauffeur.jpg";
+import { JourneyTrace } from "@/components/site/JourneyTrace";
 import { Reveal } from "@/components/site/Reveal";
 import { ClosingCTA, PageHero, SectionHeading } from "@/components/site/ui";
 import { Differentiators, IndiaNetwork, StatsSection } from "@/components/site/sections";
@@ -33,8 +33,8 @@ function About() {
       <StatsSection />
       <section className="py-24 md:py-36">
         <div className="container-x grid items-center gap-16 lg:grid-cols-2">
-          <Reveal className="aspect-[4/5] overflow-hidden">
-            <img src={chauffeur} alt="DC Cabs chauffeur" loading="lazy" className="size-full object-cover" />
+          <Reveal className="aspect-[4/5]">
+            <JourneyTrace />
           </Reveal>
           <div>
             <SectionHeading
