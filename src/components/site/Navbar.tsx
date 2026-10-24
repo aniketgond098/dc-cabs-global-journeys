@@ -81,7 +81,7 @@ export function Navbar() {
     </header>
       <div
         className={cn(
-          "fixed inset-x-0 bottom-0 z-40 top-16 bg-background transition-all duration-500 xl:hidden",
+          "fixed inset-x-0 bottom-0 z-[45] top-16 bg-background transition-all duration-500 xl:hidden",
           scrolled ? "top-16" : "top-24",
           open ? "visible opacity-100" : "invisible opacity-0",
         )}
