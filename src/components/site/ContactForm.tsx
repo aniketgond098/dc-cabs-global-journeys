@@ -19,7 +19,7 @@ const schema = z.object({
 const field =
   "w-full border-0 border-b border-hairline bg-transparent px-0 py-3 text-base text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none focus:ring-0";
 
-function F({ label, error, children, className }: { label: string; error?: string; children: ReactNode; className?: string }) {
+function F({ label, error, children, className }: { label: string; error?: string | undefined; children: ReactNode; className?: string | undefined }) {
   return (
     <label className={cn("block", className)}>
       <span className="eyebrow">{label}</span>
@@ -84,20 +84,20 @@ export function ContactForm({ defaultType = "" }: { defaultType?: string }) {
 
   return (
     <form onSubmit={onSubmit} noValidate className="grid gap-x-8 gap-y-8 sm:grid-cols-2">
-      <F error={errors.name} label="Name *"><input name="name" autoComplete="name" className={field} placeholder="Your full name" /></F>
-      <F error={errors.company} label="Company"><input name="company" autoComplete="organization" className={field} placeholder="Company / agency" /></F>
-      <F error={errors.email} label="Email *"><input name="email" type="email" autoComplete="email" className={field} placeholder="you@company.com" /></F>
-      <F error={errors.phone} label="Phone *"><input name="phone" type="tel" autoComplete="tel" className={field} placeholder="+91 / international" /></F>
-      <F error={errors.type} label="Requirement type *" className="sm:col-span-2">
+      <F error={errors["name"]} label="Name *"><input name="name" autoComplete="name" className={field} placeholder="Your full name" /></F>
+      <F error={errors["company"]} label="Company"><input name="company" autoComplete="organization" className={field} placeholder="Company / agency" /></F>
+      <F error={errors["email"]} label="Email *"><input name="email" type="email" autoComplete="email" className={field} placeholder="you@company.com" /></F>
+      <F error={errors["phone"]} label="Phone *"><input name="phone" type="tel" autoComplete="tel" className={field} placeholder="+91 / international" /></F>
+      <F error={errors["type"]} label="Requirement type *" className="sm:col-span-2">
         <select name="type" defaultValue={requirementTypes.includes(defaultType) ? defaultType : ""} className={cn(field, "bg-background")}>
           <option value="" disabled>Select a requirement</option>
           {requirementTypes.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </F>
-      <F error={errors.route} label="Pickup / Destination" className="sm:col-span-2"><input name="route" className={field} placeholder="e.g. Delhi airport → Agra → Jaipur, or Dubai" /></F>
-      <F error={errors.date} label="Travel date"><input name="date" type="date" className={cn(field, "[color-scheme:dark]")} /></F>
-      <F error={errors.travelers} label="Number of travelers"><input name="travelers" type="number" min={1} inputMode="numeric" className={field} placeholder="e.g. 12" /></F>
-      <F error={errors.message} label="Message" className="sm:col-span-2"><textarea name="message" rows={4} className={cn(field, "resize-none")} placeholder="Tell us about the journey, guests and any special requirements" /></F>
+      <F error={errors["route"]} label="Pickup / Destination" className="sm:col-span-2"><input name="route" className={field} placeholder="e.g. Delhi airport → Agra → Jaipur, or Dubai" /></F>
+      <F error={errors["date"]} label="Travel date"><input name="date" type="date" className={cn(field, "[color-scheme:dark]")} /></F>
+      <F error={errors["travelers"]} label="Number of travelers"><input name="travelers" type="number" min={1} inputMode="numeric" className={field} placeholder="e.g. 12" /></F>
+      <F error={errors["message"]} label="Message" className="sm:col-span-2"><textarea name="message" rows={4} className={cn(field, "resize-none")} placeholder="Tell us about the journey, guests and any special requirements" /></F>
       <div className="sm:col-span-2">
         <button type="submit" className={cn(btn.primary, "w-full sm:w-auto")}>Send enquiry</button>
         <p className="mt-4 text-xs text-muted-foreground">Your enquiry opens in WhatsApp, addressed to our operations & sales team.</p>

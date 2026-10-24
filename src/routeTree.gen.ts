@@ -10,33 +10,115 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AboutRouteImport } from './routes/about'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as CorporateMobilityRouteImport } from './routes/corporate-mobility'
+import { Route as DestinationsRouteImport } from './routes/destinations'
+import { Route as FleetRouteImport } from './routes/fleet'
+import { Route as IndiaToursRouteImport } from './routes/india-tours'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CorporateMobilityRoute = CorporateMobilityRouteImport.update({
+  id: '/corporate-mobility',
+  path: '/corporate-mobility',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DestinationsRoute = DestinationsRouteImport.update({
+  id: '/destinations',
+  path: '/destinations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FleetRoute = FleetRouteImport.update({
+  id: '/fleet',
+  path: '/fleet',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndiaToursRoute = IndiaToursRouteImport.update({
+  id: '/india-tours',
+  path: '/india-tours',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/contact': typeof ContactRoute
+  '/corporate-mobility': typeof CorporateMobilityRoute
+  '/destinations': typeof DestinationsRoute
+  '/fleet': typeof FleetRoute
+  '/india-tours': typeof IndiaToursRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/contact': typeof ContactRoute
+  '/corporate-mobility': typeof CorporateMobilityRoute
+  '/destinations': typeof DestinationsRoute
+  '/fleet': typeof FleetRoute
+  '/india-tours': typeof IndiaToursRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/contact': typeof ContactRoute
+  '/corporate-mobility': typeof CorporateMobilityRoute
+  '/destinations': typeof DestinationsRoute
+  '/fleet': typeof FleetRoute
+  '/india-tours': typeof IndiaToursRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/contact'
+    | '/corporate-mobility'
+    | '/destinations'
+    | '/fleet'
+    | '/india-tours'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/about'
+    | '/contact'
+    | '/corporate-mobility'
+    | '/destinations'
+    | '/fleet'
+    | '/india-tours'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/contact'
+    | '/corporate-mobility'
+    | '/destinations'
+    | '/fleet'
+    | '/india-tours'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
+  ContactRoute: typeof ContactRoute
+  CorporateMobilityRoute: typeof CorporateMobilityRoute
+  DestinationsRoute: typeof DestinationsRoute
+  FleetRoute: typeof FleetRoute
+  IndiaToursRoute: typeof IndiaToursRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +130,59 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/corporate-mobility': {
+      id: '/corporate-mobility'
+      path: '/corporate-mobility'
+      fullPath: '/corporate-mobility'
+      preLoaderRoute: typeof CorporateMobilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/destinations': {
+      id: '/destinations'
+      path: '/destinations'
+      fullPath: '/destinations'
+      preLoaderRoute: typeof DestinationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fleet': {
+      id: '/fleet'
+      path: '/fleet'
+      fullPath: '/fleet'
+      preLoaderRoute: typeof FleetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/india-tours': {
+      id: '/india-tours'
+      path: '/india-tours'
+      fullPath: '/india-tours'
+      preLoaderRoute: typeof IndiaToursRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
+  ContactRoute: ContactRoute,
+  CorporateMobilityRoute: CorporateMobilityRoute,
+  DestinationsRoute: DestinationsRoute,
+  FleetRoute: FleetRoute,
+  IndiaToursRoute: IndiaToursRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
