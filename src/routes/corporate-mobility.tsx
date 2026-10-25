@@ -14,104 +14,42 @@ export const Route = createFileRoute("/corporate-mobility")({
   head: () => ({
     meta: [
       { title: "Corporate Mobility — Global Mobility, Local Expertise | DC Cabs" },
-      {
-        name: "description",
-        content:
-          "Airport transfers, executive travel, VIP transportation, MICE and international destination mobility for businesses, DMCs and travel partners.",
-      },
+      { name: "description", content: "Airport transfers, executive travel, VIP transportation, MICE and international destination mobility for businesses, DMCs and travel partners." },
       { property: "og:title", content: "Corporate Mobility by DC Cabs" },
-      {
-        property: "og:description",
-        content:
-          "Dependable ground transportation for businesses, travelers and global travel partners.",
-      },
+      { property: "og:description", content: "Dependable ground transportation for businesses, travelers and global travel partners." },
     ],
   }),
   component: Corporate,
 });
 
 const corpServices: { title: string; body: string; image?: string }[] = [
-  {
-    title: "Airport Transfers",
-    body: "Executive meet-and-greet pickups and drops, timed to every arrival.",
-  },
-  {
-    title: "Executive Travel",
-    body: "C-suite and senior leadership movement in premium sedans and SUVs.",
-    image: luxury,
-  },
-  {
-    title: "Corporate Daily Mobility",
-    body: "Daily employee and guest travel with real-time dispatch and automated billing.",
-    image: corporate,
-  },
-  {
-    title: "VIP Transportation",
-    body: "Discreet, punctual movement for dignitaries and high-profile guests.",
-    image: hero,
-  },
-  {
-    title: "MICE & Delegation Travel",
-    body: "Coaches, MUVs and coordinated transfers for conferences and incentive groups.",
-    image: coach,
-  },
-  {
-    title: "Outstation Corporate Travel",
-    body: "Intercity business travel across our 45+ city network.",
-    image: suv,
-  },
-  {
-    title: "International Destination Mobility",
-    body: "Ground mobility coordinated across key international destinations.",
-    image: dubai,
-  },
-  {
-    title: "Customized Travel",
-    body: "Retreats, offsites and bespoke itineraries for corporate teams.",
-    image: europe,
-  },
+  { title: "Airport Transfers", body: "Executive meet-and-greet pickups and drops, timed to every arrival.", },
+  { title: "Executive Travel", body: "C-suite and senior leadership movement in premium sedans and SUVs.", image: luxury },
+  { title: "Corporate Daily Mobility", body: "Daily employee and guest travel with real-time dispatch and automated billing.", image: corporate },
+  { title: "VIP Transportation", body: "Discreet, punctual movement for dignitaries and high-profile guests.", image: hero },
+  { title: "MICE & Delegation Travel", body: "Coaches, MUVs and coordinated transfers for conferences and incentive groups.", image: coach },
+  { title: "Outstation Corporate Travel", body: "Intercity business travel across our 45+ city network.", image: suv },
+  { title: "International Destination Mobility", body: "Ground mobility coordinated across key international destinations.", image: dubai },
+  { title: "Customized Travel", body: "Retreats, offsites and bespoke itineraries for corporate teams.", image: europe },
 ];
 
-const audiences = [
-  "International Tour Operators",
-  "DMCs",
-  "Corporate Travel Departments",
-  "Travel Management Companies",
-  "Global Travel Partners",
-  "MICE Organizers",
-];
+const audiences = ["International Tour Operators", "DMCs", "Corporate Travel Departments", "Travel Management Companies", "Global Travel Partners", "MICE Organizers"];
 
 function Corporate() {
   return (
     <>
       <PageHero
         eyebrow="Corporate mobility"
-        title={
-          <>
-            Global mobility. <br />
-            <span className="text-foreground/40">Local expertise.</span>
-          </>
-        }
+        title={<>Global mobility. <br /><span className="text-foreground/40">Local expertise.</span></>}
         intro="From Pan-India corporate transportation to international destination mobility, DC Cabs provides dependable ground transportation for businesses, travelers and global travel partners."
         image={corporate}
       >
-        <CTALink to="/contact" search={{ type: "Corporate Travel" }}>
-          Discuss your requirement
-        </CTALink>
+        <CTALink to="/contact" search={{ type: "Corporate Travel" }}>Discuss your requirement</CTALink>
       </PageHero>
 
       <section className="py-24 md:py-36">
         <div className="container-x">
-          <SectionHeading
-            eyebrow="Capabilities"
-            title={
-              <>
-                Built for business. <br />
-                <span className="text-foreground/40">Driven by reliability.</span>
-              </>
-            }
-            className="mb-16"
-          />
+          <SectionHeading eyebrow="Capabilities" title={<>Built for business. <br /><span className="text-foreground/40">Driven by reliability.</span></>} className="mb-16" />
           <ServiceList items={corpServices} />
         </div>
       </section>
@@ -132,20 +70,14 @@ function Corporate() {
                 </li>
               ))}
             </ul>
-            <CTALink to="/contact" search={{ type: "B2B / DMC Partnership" }} className="mt-10">
-              Partner with DC Cabs
-            </CTALink>
+            <CTALink to="/contact" search={{ type: "B2B / DMC Partnership" }} className="mt-10">Partner with DC Cabs</CTALink>
           </Reveal>
         </div>
       </section>
 
       <section className="py-24 md:py-36">
         <div className="container-x">
-          <SectionHeading
-            eyebrow="The standard"
-            title="What every booking includes."
-            className="mb-16"
-          />
+          <SectionHeading eyebrow="The standard" title="What every booking includes." className="mb-16" />
           <Differentiators />
         </div>
       </section>

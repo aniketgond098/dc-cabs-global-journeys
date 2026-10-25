@@ -1,5 +1,4 @@
 <!-- LOVABLE:BEGIN -->
-
 > [!IMPORTANT]
 > This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
 > published git history — force pushing, or rebasing/amending/squashing commits
@@ -8,11 +7,9 @@
 >
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
-
 <!-- LOVABLE:END -->
 
 ## Project rules
-
 - All site copy, contact details, fleet, cities and destinations live in `src/content/site.ts`; pages only render it — keeps facts in one auditable place.
 - Enquiry form has no backend: it validates and opens WhatsApp (email fallback) with the details — the site is a lead-gen brochure, no Cloud needed.
 - Never add stats, prices, specs, testimonials or claims not in the client's company material — client requirement for factual accuracy.
