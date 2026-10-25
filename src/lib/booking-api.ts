@@ -180,6 +180,30 @@ function safeDiagnosticScalar(
   return typeof value === "number" ? safeDiagnosticNumber(value) : safeDiagnosticText(value, env);
 }
 
+function supabaseUrlMetadata(
+  value: string | undefined,
+  env: Record<string, string | undefined>,
+): Record<string, unknown> {
+  const normalized = value?.trim() ?? "";
+  let parsed: URL | null = null;
+  try {
+    if (normalized) parsed = new URL(normalized);
+  } catch {
+    // Keep malformed values out of logs; the metadata below will show parse failure.
+  }
+
+  return {
+    supabase_url_length: value?.length ?? 0,
+    supabase_url_has_leading_whitespace: value ? value.length !== value.trimStart().length : false,
+    supabase_url_has_trailing_whitespace: value ? value.length !== value.trimEnd().length : false,
+    supabase_url_has_trailing_slash: normalized.endsWith("/"),
+    supabase_url_protocol: safeDiagnosticText(parsed?.protocol, env),
+    supabase_url_hostname: safeDiagnosticText(parsed?.hostname, env),
+    supabase_url_pathname: safeDiagnosticText(parsed?.pathname, env),
+    supabase_url_trimmed_matches_expected: normalized === EXPECTED_SUPABASE_URL,
+  };
+}
+
 function classifyFetchFailure(value: unknown): string | null {
   const current = errorLike(value);
   const nested = errorLike(current?.cause);
@@ -304,6 +328,7 @@ async function logDatabaseFailure(cause: unknown, area: string): Promise<void> {
       node_version: runtimeProcess?.version ?? null,
       supabase_url_configured: Boolean(env["SUPABASE_URL"]),
       supabase_url_matches_expected: env["SUPABASE_URL"] === EXPECTED_SUPABASE_URL,
+      ...supabaseUrlMetadata(env["SUPABASE_URL"], env),
       supabase_key_configured: Boolean(key),
       selected_key_type: keyName,
       supabase_error_code: code,

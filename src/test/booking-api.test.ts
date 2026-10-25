@@ -117,8 +117,9 @@ describe("catalog endpoints", () => {
 
   it("logs redacted Supabase diagnostics while returning a generic database error", async () => {
     const supabaseUrl = "https://example.supabase.co";
+    const configuredSupabaseUrl = ` ${supabaseUrl}/ `;
     const secretCanary = "diagnostic-canary-value-not-for-logs";
-    vi.stubEnv("SUPABASE_URL", supabaseUrl);
+    vi.stubEnv("SUPABASE_URL", configuredSupabaseUrl);
     vi.stubEnv("SUPABASE_SECRET_KEY", secretCanary);
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "legacy-key-canary-value");
     vi.stubEnv("NETLIFY", "true");
@@ -129,7 +130,7 @@ describe("catalog endpoints", () => {
           data: null,
           error: {
             code: "PGRST301",
-            message: `Request to ${supabaseUrl}: Authorization: Bearer ${secretCanary}`,
+            message: `Request to ${configuredSupabaseUrl}: Authorization: Bearer ${secretCanary}`,
           },
         },
       },
@@ -151,6 +152,15 @@ describe("catalog endpoints", () => {
       area: "catalog.countries",
       platform: "netlify",
       supabase_url_configured: true,
+      supabase_url_matches_expected: false,
+      supabase_url_length: configuredSupabaseUrl.length,
+      supabase_url_has_leading_whitespace: true,
+      supabase_url_has_trailing_whitespace: true,
+      supabase_url_has_trailing_slash: true,
+      supabase_url_protocol: "https:",
+      supabase_url_hostname: "example.supabase.co",
+      supabase_url_pathname: "/",
+      supabase_url_trimmed_matches_expected: false,
       supabase_key_configured: true,
       selected_key_type: "SUPABASE_SECRET_KEY",
       supabase_error_code: "PGRST301",
@@ -160,6 +170,7 @@ describe("catalog endpoints", () => {
     expect(serializedDiagnostic).not.toContain(supabaseUrl);
     expect(serializedDiagnostic).not.toContain(secretCanary);
     expect(serializedDiagnostic).not.toContain("legacy-key-canary-value");
+    expect(serializedDiagnostic).not.toContain(configuredSupabaseUrl);
   });
 
   it("logs fetch cause fields and probes Supabase without credentials", async () => {
