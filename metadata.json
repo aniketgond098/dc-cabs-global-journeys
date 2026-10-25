@@ -1,0 +1,6 @@
+{
+  "name": "DC Cabs - Global Journeys",
+  "description": "Global luxury car rental, corporate mobility, and curated tour services by DC Cabs.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

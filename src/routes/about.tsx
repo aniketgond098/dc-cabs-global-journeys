@@ -9,9 +9,17 @@ export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
       { title: "About DC Cabs — Pan-India & International Mobility Partner" },
-      { name: "description", content: "DC Cabs is a pan-India and international corporate mobility and travel solutions provider serving 45+ Indian cities and key global destinations." },
+      {
+        name: "description",
+        content:
+          "DC Cabs is a pan-India and international corporate mobility and travel solutions provider serving 45+ Indian cities and key global destinations.",
+      },
       { property: "og:title", content: "About DC Cabs" },
-      { property: "og:description", content: "A Pan-India & International mobility partner for travelers, corporates and global travel partners." },
+      {
+        property: "og:description",
+        content:
+          "A Pan-India & International mobility partner for travelers, corporates and global travel partners.",
+      },
     ],
   }),
   component: About,
@@ -29,7 +37,17 @@ const pillars = [
 function About() {
   return (
     <>
-      <PageHero eyebrow="About DC Cabs" title={<>45+ cities. <br /><span className="text-foreground/40">One mobility partner.</span></>} intro="A Pan-India & International mobility partner, delivering seamless ground transportation and customized travel for international travelers, corporates and global travel partners." image={hero} />
+      <PageHero
+        eyebrow="About DC Cabs"
+        title={
+          <>
+            45+ cities. <br />
+            <span className="text-foreground/40">One mobility partner.</span>
+          </>
+        }
+        intro="A Pan-India & International mobility partner, delivering seamless ground transportation and customized travel for international travelers, corporates and global travel partners."
+        image={hero}
+      />
       <StatsSection />
       <section className="py-24 md:py-36">
         <div className="container-x grid items-center gap-16 lg:grid-cols-2">
@@ -55,13 +73,28 @@ function About() {
       </section>
       <section className="border-t border-border bg-charcoal py-24 md:py-36">
         <div className="container-x grid items-center gap-16 lg:grid-cols-2">
-          <SectionHeading eyebrow="Coverage" title={<>A network built <br />city by city.</>} intro="Key hubs including Delhi (NCR), Mumbai, Bengaluru, Jaipur, Agra, Goa, Kerala and Hyderabad — and an extended network of 45+ locations." />
-          <Reveal><IndiaNetwork /></Reveal>
+          <SectionHeading
+            eyebrow="Coverage"
+            title={
+              <>
+                A network built <br />
+                city by city.
+              </>
+            }
+            intro="Key hubs including Delhi (NCR), Mumbai, Bengaluru, Jaipur, Agra, Goa, Kerala and Hyderabad — and an extended network of 45+ locations."
+          />
+          <Reveal>
+            <IndiaNetwork />
+          </Reveal>
         </div>
       </section>
       <section className="py-24 md:py-36">
         <div className="container-x">
-          <SectionHeading eyebrow="What sets us apart" title="Four commitments." className="mb-16" />
+          <SectionHeading
+            eyebrow="What sets us apart"
+            title="Four commitments."
+            className="mb-16"
+          />
           <Differentiators />
         </div>
       </section>

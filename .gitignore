@@ -11,16 +11,10 @@ node_modules
 dist
 dist-ssr
 .output
-.netlify/
 .vinxi
 .tanstack/**
 .nitro
 *.local
-
-# Local environment variables (example templates may be committed).
-.env
-.env.*
-!.env.example
 
 # Wrangler / Cloudflare
 .wrangler/
