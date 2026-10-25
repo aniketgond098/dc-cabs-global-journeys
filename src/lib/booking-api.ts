@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { createBookingPaymentToken } from "@/lib/razorpay";
 
 export type BookingDatabase = SupabaseClient;
 
@@ -723,10 +724,21 @@ export async function handleCreateBooking(
     const result = Array.isArray(data) ? data[0] : data;
     if (!result)
       return await databaseFailure(new Error("Booking RPC returned no result"), "booking");
-    if (result.result_status === "CREATED")
-      return json({ booking: result.booking, replayed: false }, 201);
-    if (result.result_status === "REPLAYED")
-      return json({ booking: result.booking, replayed: true }, 200);
+    if (result.result_status === "CREATED" || result.result_status === "REPLAYED") {
+      const booking = result.booking as Record<string, unknown>;
+      const keySecret = runtimeEnvironment()["RAZORPAY_KEY_SECRET"];
+      const paymentAccessToken =
+        keySecret && typeof booking?.["id"] === "string"
+          ? createBookingPaymentToken(booking["id"], keySecret)
+          : undefined;
+      return json(
+        {
+          booking: paymentAccessToken ? { ...booking, paymentAccessToken } : booking,
+          replayed: result.result_status === "REPLAYED",
+        },
+        result.result_status === "CREATED" ? 201 : 200,
+      );
+    }
     const responses: Record<string, { code: ApiErrorCode; message: string; status: number }> = {
       INVALID_REQUEST: {
         code: "invalid_request",

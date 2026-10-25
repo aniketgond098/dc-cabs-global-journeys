@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as BookRouteImport } from './routes/book'
+import { Route as BookingConfirmationRouteImport } from './routes/booking-confirmation'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CorporateMobilityRouteImport } from './routes/corporate-mobility'
 import { Route as DestinationsRouteImport } from './routes/destinations'
@@ -19,6 +21,10 @@ import { Route as IndiaToursRouteImport } from './routes/india-tours'
 import { Route as ApiV1BookingsRouteImport } from './routes/api/v1/bookings'
 import { Route as ApiV1QuotesRouteImport } from './routes/api/v1/quotes'
 import { Route as ApiV1CatalogResourceRouteImport } from './routes/api/v1/catalog/$resource'
+import { Route as ApiV1PaymentsCreateOrderRouteImport } from './routes/api/v1/payments/create-order'
+import { Route as ApiV1PaymentsStatusRouteImport } from './routes/api/v1/payments/status'
+import { Route as ApiV1PaymentsVerifyRouteImport } from './routes/api/v1/payments/verify'
+import { Route as ApiV1PaymentsWebhookRouteImport } from './routes/api/v1/payments/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,6 +34,16 @@ const IndexRoute = IndexRouteImport.update({
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookRoute = BookRouteImport.update({
+  id: '/book',
+  path: '/book',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookingConfirmationRoute = BookingConfirmationRouteImport.update({
+  id: '/booking-confirmation',
+  path: '/booking-confirmation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -70,10 +86,33 @@ const ApiV1CatalogResourceRoute = ApiV1CatalogResourceRouteImport.update({
   path: '/api/v1/catalog/$resource',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1PaymentsCreateOrderRoute =
+  ApiV1PaymentsCreateOrderRouteImport.update({
+    id: '/api/v1/payments/create-order',
+    path: '/api/v1/payments/create-order',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1PaymentsStatusRoute = ApiV1PaymentsStatusRouteImport.update({
+  id: '/api/v1/payments/status',
+  path: '/api/v1/payments/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1PaymentsVerifyRoute = ApiV1PaymentsVerifyRouteImport.update({
+  id: '/api/v1/payments/verify',
+  path: '/api/v1/payments/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1PaymentsWebhookRoute = ApiV1PaymentsWebhookRouteImport.update({
+  id: '/api/v1/payments/webhook',
+  path: '/api/v1/payments/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/book': typeof BookRoute
+  '/booking-confirmation': typeof BookingConfirmationRoute
   '/contact': typeof ContactRoute
   '/corporate-mobility': typeof CorporateMobilityRoute
   '/destinations': typeof DestinationsRoute
@@ -82,10 +121,16 @@ export interface FileRoutesByFullPath {
   '/api/v1/bookings': typeof ApiV1BookingsRoute
   '/api/v1/quotes': typeof ApiV1QuotesRoute
   '/api/v1/catalog/$resource': typeof ApiV1CatalogResourceRoute
+  '/api/v1/payments/create-order': typeof ApiV1PaymentsCreateOrderRoute
+  '/api/v1/payments/status': typeof ApiV1PaymentsStatusRoute
+  '/api/v1/payments/verify': typeof ApiV1PaymentsVerifyRoute
+  '/api/v1/payments/webhook': typeof ApiV1PaymentsWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/book': typeof BookRoute
+  '/booking-confirmation': typeof BookingConfirmationRoute
   '/contact': typeof ContactRoute
   '/corporate-mobility': typeof CorporateMobilityRoute
   '/destinations': typeof DestinationsRoute
@@ -94,11 +139,17 @@ export interface FileRoutesByTo {
   '/api/v1/bookings': typeof ApiV1BookingsRoute
   '/api/v1/quotes': typeof ApiV1QuotesRoute
   '/api/v1/catalog/$resource': typeof ApiV1CatalogResourceRoute
+  '/api/v1/payments/create-order': typeof ApiV1PaymentsCreateOrderRoute
+  '/api/v1/payments/status': typeof ApiV1PaymentsStatusRoute
+  '/api/v1/payments/verify': typeof ApiV1PaymentsVerifyRoute
+  '/api/v1/payments/webhook': typeof ApiV1PaymentsWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/book': typeof BookRoute
+  '/booking-confirmation': typeof BookingConfirmationRoute
   '/contact': typeof ContactRoute
   '/corporate-mobility': typeof CorporateMobilityRoute
   '/destinations': typeof DestinationsRoute
@@ -107,12 +158,18 @@ export interface FileRoutesById {
   '/api/v1/bookings': typeof ApiV1BookingsRoute
   '/api/v1/quotes': typeof ApiV1QuotesRoute
   '/api/v1/catalog/$resource': typeof ApiV1CatalogResourceRoute
+  '/api/v1/payments/create-order': typeof ApiV1PaymentsCreateOrderRoute
+  '/api/v1/payments/status': typeof ApiV1PaymentsStatusRoute
+  '/api/v1/payments/verify': typeof ApiV1PaymentsVerifyRoute
+  '/api/v1/payments/webhook': typeof ApiV1PaymentsWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/about'
+    | '/book'
+    | '/booking-confirmation'
     | '/contact'
     | '/corporate-mobility'
     | '/destinations'
@@ -121,10 +178,16 @@ export interface FileRouteTypes {
     | '/api/v1/bookings'
     | '/api/v1/quotes'
     | '/api/v1/catalog/$resource'
+    | '/api/v1/payments/create-order'
+    | '/api/v1/payments/status'
+    | '/api/v1/payments/verify'
+    | '/api/v1/payments/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/about'
+    | '/book'
+    | '/booking-confirmation'
     | '/contact'
     | '/corporate-mobility'
     | '/destinations'
@@ -133,10 +196,16 @@ export interface FileRouteTypes {
     | '/api/v1/bookings'
     | '/api/v1/quotes'
     | '/api/v1/catalog/$resource'
+    | '/api/v1/payments/create-order'
+    | '/api/v1/payments/status'
+    | '/api/v1/payments/verify'
+    | '/api/v1/payments/webhook'
   id:
     | '__root__'
     | '/'
     | '/about'
+    | '/book'
+    | '/booking-confirmation'
     | '/contact'
     | '/corporate-mobility'
     | '/destinations'
@@ -145,11 +214,17 @@ export interface FileRouteTypes {
     | '/api/v1/bookings'
     | '/api/v1/quotes'
     | '/api/v1/catalog/$resource'
+    | '/api/v1/payments/create-order'
+    | '/api/v1/payments/status'
+    | '/api/v1/payments/verify'
+    | '/api/v1/payments/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  BookRoute: typeof BookRoute
+  BookingConfirmationRoute: typeof BookingConfirmationRoute
   ContactRoute: typeof ContactRoute
   CorporateMobilityRoute: typeof CorporateMobilityRoute
   DestinationsRoute: typeof DestinationsRoute
@@ -158,6 +233,10 @@ export interface RootRouteChildren {
   ApiV1BookingsRoute: typeof ApiV1BookingsRoute
   ApiV1QuotesRoute: typeof ApiV1QuotesRoute
   ApiV1CatalogResourceRoute: typeof ApiV1CatalogResourceRoute
+  ApiV1PaymentsCreateOrderRoute: typeof ApiV1PaymentsCreateOrderRoute
+  ApiV1PaymentsStatusRoute: typeof ApiV1PaymentsStatusRoute
+  ApiV1PaymentsVerifyRoute: typeof ApiV1PaymentsVerifyRoute
+  ApiV1PaymentsWebhookRoute: typeof ApiV1PaymentsWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -174,6 +253,20 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/book': {
+      id: '/book'
+      path: '/book'
+      fullPath: '/book'
+      preLoaderRoute: typeof BookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/booking-confirmation': {
+      id: '/booking-confirmation'
+      path: '/booking-confirmation'
+      fullPath: '/booking-confirmation'
+      preLoaderRoute: typeof BookingConfirmationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -232,12 +325,42 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1CatalogResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/payments/create-order': {
+      id: '/api/v1/payments/create-order'
+      path: '/api/v1/payments/create-order'
+      fullPath: '/api/v1/payments/create-order'
+      preLoaderRoute: typeof ApiV1PaymentsCreateOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/payments/status': {
+      id: '/api/v1/payments/status'
+      path: '/api/v1/payments/status'
+      fullPath: '/api/v1/payments/status'
+      preLoaderRoute: typeof ApiV1PaymentsStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/payments/verify': {
+      id: '/api/v1/payments/verify'
+      path: '/api/v1/payments/verify'
+      fullPath: '/api/v1/payments/verify'
+      preLoaderRoute: typeof ApiV1PaymentsVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/payments/webhook': {
+      id: '/api/v1/payments/webhook'
+      path: '/api/v1/payments/webhook'
+      fullPath: '/api/v1/payments/webhook'
+      preLoaderRoute: typeof ApiV1PaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  BookRoute: BookRoute,
+  BookingConfirmationRoute: BookingConfirmationRoute,
   ContactRoute: ContactRoute,
   CorporateMobilityRoute: CorporateMobilityRoute,
   DestinationsRoute: DestinationsRoute,
@@ -246,6 +369,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1BookingsRoute: ApiV1BookingsRoute,
   ApiV1QuotesRoute: ApiV1QuotesRoute,
   ApiV1CatalogResourceRoute: ApiV1CatalogResourceRoute,
+  ApiV1PaymentsCreateOrderRoute: ApiV1PaymentsCreateOrderRoute,
+  ApiV1PaymentsStatusRoute: ApiV1PaymentsStatusRoute,
+  ApiV1PaymentsVerifyRoute: ApiV1PaymentsVerifyRoute,
+  ApiV1PaymentsWebhookRoute: ApiV1PaymentsWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

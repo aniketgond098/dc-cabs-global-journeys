@@ -31,6 +31,7 @@ export const nav = [
   { to: "/corporate-mobility", label: "Corporate Mobility" },
   { to: "/india-tours", label: "India Tours" },
   { to: "/destinations", label: "Destinations" },
+  { to: "/book", label: "Book online" },
   { to: "/about", label: "About" },
   { to: "/contact", label: "Contact" },
 ] as const;

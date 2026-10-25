@@ -7,6 +7,7 @@ import {
   rejectCrossOriginRequest,
   type BookingDatabase,
 } from "@/lib/booking-api";
+import { createBookingPaymentToken } from "@/lib/razorpay";
 
 function queryBuilder(result: { data: unknown; error: unknown }, calls: unknown[] = []) {
   const builder: Record<string, unknown> = {};
@@ -343,6 +344,8 @@ describe("quote endpoint", () => {
 
 describe("booking endpoint", () => {
   it("creates a pending booking from a quote and reuses the same idempotent result", async () => {
+    const paymentSecret = "booking-token-test-secret";
+    vi.stubEnv("RAZORPAY_KEY_SECRET", paymentSecret);
     const { database, rpcCalls } = makeDatabase({
       rpc: async () => ({
         data: [
@@ -368,10 +371,15 @@ describe("booking endpoint", () => {
       database,
     );
     expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({
+    const createdBody = (await response.json()) as { booking: { paymentAccessToken: string } };
+    expect(createdBody).toMatchObject({
       replayed: false,
       booking: { status: "payment_pending", paymentStatus: "pending", total: 1180 },
     });
+    expect(createdBody.booking.paymentAccessToken).toBe(
+      createBookingPaymentToken("booking-1", paymentSecret),
+    );
+    expect(JSON.stringify(createdBody)).not.toContain(paymentSecret);
     expect(rpcCalls[0]?.name).toBe("create_booking_from_quote");
     expect(rpcCalls[0]?.args).not.toHaveProperty("amount");
     expect(rpcCalls[0]?.args["p_email"]).toBe("guest@example.com");
@@ -393,7 +401,9 @@ describe("booking endpoint", () => {
       replayDatabase.database,
     );
     expect(replay.status).toBe(200);
-    expect(await replay.json()).toMatchObject({ replayed: true, booking: { id: "booking-1" } });
+    const replayBody = (await replay.json()) as { booking: { paymentAccessToken: string } };
+    expect(replayBody).toMatchObject({ replayed: true, booking: { id: "booking-1" } });
+    expect(replayBody.booking.paymentAccessToken).toBe(createdBody.booking.paymentAccessToken);
   });
 
   it("rejects caller-supplied pricing and maps expired quote responses", async () => {
