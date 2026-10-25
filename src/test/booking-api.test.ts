@@ -69,6 +69,7 @@ const bookingPayload = {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
 
@@ -128,7 +129,7 @@ describe("catalog endpoints", () => {
           data: null,
           error: {
             code: "PGRST301",
-            message: `Authorization: Bearer ${secretCanary}`,
+            message: `Request to ${supabaseUrl}: Authorization: Bearer ${secretCanary}`,
           },
         },
       },
@@ -159,6 +160,68 @@ describe("catalog endpoints", () => {
     expect(serializedDiagnostic).not.toContain(supabaseUrl);
     expect(serializedDiagnostic).not.toContain(secretCanary);
     expect(serializedDiagnostic).not.toContain("legacy-key-canary-value");
+  });
+
+  it("logs fetch cause fields and probes Supabase without credentials", async () => {
+    const supabaseUrl = "https://example.supabase.co";
+    const serviceKeyCanary = "service-role-canary-never-log";
+    vi.stubEnv("SUPABASE_URL", supabaseUrl);
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", serviceKeyCanary);
+    vi.stubEnv("NETLIFY", "true");
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const probe = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("https://example.supabase.co/rest/v1/");
+      expect(init?.headers).toBeUndefined();
+      return new Response(null, { status: 401 });
+    });
+    vi.stubGlobal("fetch", probe);
+    const { database } = makeDatabase({
+      tableResults: {
+        countries: {
+          data: null,
+          error: {
+            name: "TypeError",
+            message: "fetch failed",
+            cause: {
+              name: "Error",
+              code: "EAI_AGAIN",
+              message: "getaddrinfo EAI_AGAIN example.supabase.co",
+              errno: -3001,
+              syscall: "getaddrinfo",
+              hostname: "example.supabase.co",
+            },
+          },
+        },
+      },
+    });
+
+    const response = await handleCatalog(
+      new Request("https://site.test/api/v1/catalog/countries"),
+      "countries",
+      database,
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: { code: "internal_server_error", message: "The request could not be completed." },
+    });
+    expect(probe).toHaveBeenCalledOnce();
+    const diagnostic = JSON.parse(String(errorLog.mock.calls[0]?.[1])) as Record<string, unknown>;
+    expect(diagnostic).toMatchObject({
+      supabase_url_matches_expected: false,
+      selected_key_type: "SUPABASE_SERVICE_ROLE_KEY",
+      supabase_error_name: "TypeError",
+      supabase_error_cause_name: "Error",
+      supabase_error_cause_code: "EAI_AGAIN",
+      supabase_error_cause_errno: -3001,
+      supabase_error_cause_syscall: "getaddrinfo",
+      supabase_error_cause_hostname: "example.supabase.co",
+      supabase_transport_classification: "dns_resolution_failure",
+      supabase_connectivity_probe: { result: "http_response_received", status: 401 },
+    });
+    const serializedDiagnostic = JSON.stringify(diagnostic);
+    expect(serializedDiagnostic).not.toContain(supabaseUrl);
+    expect(serializedDiagnostic).not.toContain(serviceKeyCanary);
   });
 
   it("does not expose locations beneath a city with an inactive country", async () => {

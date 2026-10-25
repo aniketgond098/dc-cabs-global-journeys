@@ -114,6 +114,7 @@ function error(code: ApiErrorCode, message: string, status: number): Response {
 }
 
 type SelectedSupabaseKey = "SUPABASE_SECRET_KEY" | "SUPABASE_SERVICE_ROLE_KEY" | "none";
+const EXPECTED_SUPABASE_URL = "https://hodcgcqqjdrashquegfb.supabase.co";
 
 function runtimeEnvironment(): Record<string, string | undefined> {
   return typeof process === "undefined" ? {} : process.env;
@@ -127,10 +128,15 @@ function selectedSupabaseKey(env: Record<string, string | undefined>): SelectedS
 
 function redactDiagnosticMessage(message: string, env: Record<string, string | undefined>): string {
   let redacted = message;
-  for (const secret of [env["SUPABASE_SECRET_KEY"], env["SUPABASE_SERVICE_ROLE_KEY"]]) {
-    if (secret) redacted = redacted.split(secret).join("[REDACTED]");
+  for (const sensitiveValue of [
+    env["SUPABASE_URL"],
+    env["SUPABASE_SECRET_KEY"],
+    env["SUPABASE_SERVICE_ROLE_KEY"],
+  ]) {
+    if (sensitiveValue) redacted = redacted.split(sensitiveValue).join("[REDACTED]");
   }
   return redacted
+    .replace(/https?:\/\/[^\s/]+(?:\/[^\s]*)?/gi, "[REDACTED_URL]")
     .replace(/\b(?:sb_secret|sb_publishable)_[A-Za-z0-9_-]+\b/gi, "[REDACTED]")
     .replace(/\beyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}(?:\.[A-Za-z0-9_-]+)?\b/g, "[REDACTED]")
     .replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [REDACTED]")
@@ -138,15 +144,137 @@ function redactDiagnosticMessage(message: string, env: Record<string, string | u
     .slice(0, 500);
 }
 
-function logDatabaseFailure(cause: unknown, area: string): void {
+type ErrorLike = {
+  name?: unknown;
+  code?: unknown;
+  message?: unknown;
+  cause?: unknown;
+  errno?: unknown;
+  syscall?: unknown;
+  hostname?: unknown;
+  address?: unknown;
+  port?: unknown;
+  status?: unknown;
+};
+
+function errorLike(value: unknown): ErrorLike | undefined {
+  return value !== null && typeof value === "object" ? (value as ErrorLike) : undefined;
+}
+
+function safeDiagnosticText(
+  value: unknown,
+  env: Record<string, string | undefined>,
+): string | null {
+  if (typeof value !== "string") return null;
+  return redactDiagnosticMessage(value, env).slice(0, 500);
+}
+
+function safeDiagnosticNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function safeDiagnosticScalar(
+  value: unknown,
+  env: Record<string, string | undefined>,
+): string | number | null {
+  return typeof value === "number" ? safeDiagnosticNumber(value) : safeDiagnosticText(value, env);
+}
+
+function classifyFetchFailure(value: unknown): string | null {
+  const current = errorLike(value);
+  const nested = errorLike(current?.cause);
+  const codes = [current?.code, nested?.code]
+    .filter((code): code is string => typeof code === "string")
+    .map((code) => code.toUpperCase());
+  const names = [current?.name, nested?.name]
+    .filter((name): name is string => typeof name === "string")
+    .map((name) => name.toLowerCase());
+  const messages = [current?.message, nested?.message]
+    .filter((message): message is string => typeof message === "string")
+    .map((message) => message.toLowerCase());
+
+  if (
+    codes.some((code) => ["ENOTFOUND", "EAI_AGAIN", "EAI_FAIL", "ENODATA"].includes(code)) ||
+    messages.some((message) => message.includes("getaddrinfo"))
+  ) {
+    return "dns_resolution_failure";
+  }
+  if (
+    names.some((name) => name === "timeouterror" || name === "aborterror") ||
+    codes.some((code) =>
+      ["ETIMEDOUT", "ABORT_ERR", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT"].includes(
+        code,
+      ),
+    )
+  ) {
+    return "timeout";
+  }
+  if (
+    codes.some(
+      (code) =>
+        code.startsWith("ECONN") ||
+        ["EHOSTUNREACH", "ENETUNREACH", "EPIPE", "UND_ERR_SOCKET"].includes(code) ||
+        code.startsWith("ERR_TLS") ||
+        code.startsWith("CERT_") ||
+        code.startsWith("UND_ERR_CONNECT"),
+    ) ||
+    messages.some((message) => /\b(connect|tls|ssl|certificate|handshake)\b/.test(message))
+  ) {
+    return "tcp_tls_connection_failure";
+  }
+  return null;
+}
+
+async function probeSupabaseHttp(url: string | undefined): Promise<Record<string, unknown>> {
+  if (!url) return { result: "skipped", reason: "supabase_url_missing" };
+
+  let probeUrl: URL;
+  try {
+    const configuredUrl = new URL(url);
+    if (configuredUrl.protocol !== "https:" || configuredUrl.username || configuredUrl.password) {
+      return { result: "skipped", reason: "configured_url_not_safe_for_probe" };
+    }
+    probeUrl = new URL("/rest/v1/", configuredUrl.origin);
+  } catch {
+    return { result: "skipped", reason: "configured_url_invalid" };
+  }
+
+  try {
+    const response = await fetch(probeUrl, {
+      method: "GET",
+      redirect: "manual",
+      signal: AbortSignal.timeout(2500),
+    });
+    return { result: "http_response_received", status: response.status };
+  } catch (cause) {
+    const nested = errorLike(errorLike(cause)?.cause);
+    const errorValue = errorLike(cause);
+    const classified = classifyFetchFailure(cause);
+    const message = safeDiagnosticText(errorValue?.message, runtimeEnvironment());
+    return {
+      result: classified ?? "network_failure_unclassified",
+      error_name: safeDiagnosticText(errorValue?.name, runtimeEnvironment()),
+      error_code: safeDiagnosticText(errorValue?.code, runtimeEnvironment()),
+      error_message: message,
+      cause_name: safeDiagnosticText(nested?.name, runtimeEnvironment()),
+      cause_code: safeDiagnosticText(nested?.code, runtimeEnvironment()),
+      cause_message: safeDiagnosticText(nested?.message, runtimeEnvironment()),
+      cause_errno: safeDiagnosticScalar(nested?.errno, runtimeEnvironment()),
+      cause_syscall: safeDiagnosticText(nested?.syscall, runtimeEnvironment()),
+      cause_hostname: safeDiagnosticText(nested?.hostname, runtimeEnvironment()),
+      cause_address: safeDiagnosticText(nested?.address, runtimeEnvironment()),
+      cause_port: safeDiagnosticNumber(nested?.port),
+    };
+  }
+}
+
+async function logDatabaseFailure(cause: unknown, area: string): Promise<void> {
   const runtimeProcess = typeof process === "undefined" ? undefined : process;
   const env = runtimeProcess?.env ?? {};
   const keyName = selectedSupabaseKey(env);
   const key = keyName === "none" ? undefined : env[keyName];
-  const errorValue =
-    cause !== null && typeof cause === "object"
-      ? (cause as { code?: unknown; message?: unknown })
-      : undefined;
+  const errorValue = errorLike(cause);
+  const nestedError = errorLike(errorValue?.cause);
   const code =
     typeof errorValue?.code === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(errorValue.code)
       ? errorValue.code
@@ -157,6 +285,9 @@ function logDatabaseFailure(cause: unknown, area: string): void {
       : cause instanceof Error
         ? cause.message
         : "Unknown database or runtime error";
+  const status = safeDiagnosticNumber(errorValue?.status);
+  const isFetchFailure = /fetch failed/i.test(message);
+  const probe = isFetchFailure ? await probeSupabaseHttp(env["SUPABASE_URL"]) : null;
   const platform =
     env["NETLIFY"] === "true"
       ? "netlify"
@@ -172,16 +303,33 @@ function logDatabaseFailure(cause: unknown, area: string): void {
       runtime: runtimeProcess?.release?.name ?? "unknown",
       node_version: runtimeProcess?.version ?? null,
       supabase_url_configured: Boolean(env["SUPABASE_URL"]),
+      supabase_url_matches_expected: env["SUPABASE_URL"] === EXPECTED_SUPABASE_URL,
       supabase_key_configured: Boolean(key),
       selected_key_type: keyName,
       supabase_error_code: code,
       supabase_error_message: redactDiagnosticMessage(message, env),
+      supabase_http_status: status,
+      supabase_error_name: safeDiagnosticText(errorValue?.name, env),
+      supabase_error_cause_name: safeDiagnosticText(nestedError?.name, env),
+      supabase_error_cause_code: safeDiagnosticText(nestedError?.code, env),
+      supabase_error_cause_message: safeDiagnosticText(nestedError?.message, env),
+      supabase_error_cause_errno: safeDiagnosticScalar(nestedError?.errno, env),
+      supabase_error_cause_syscall: safeDiagnosticText(nestedError?.syscall, env),
+      supabase_error_cause_hostname: safeDiagnosticText(nestedError?.hostname, env),
+      supabase_error_cause_address: safeDiagnosticText(nestedError?.address, env),
+      supabase_error_cause_port: safeDiagnosticNumber(nestedError?.port),
+      supabase_transport_classification:
+        status !== null
+          ? "http_response_received"
+          : (classifyFetchFailure(cause) ??
+            (isFetchFailure ? "network_failure_unclassified" : null)),
+      supabase_connectivity_probe: probe,
     }),
   );
 }
 
-function databaseFailure(cause: unknown, area: string): Response {
-  logDatabaseFailure(cause, area);
+async function databaseFailure(cause: unknown, area: string): Promise<Response> {
+  await logDatabaseFailure(cause, area);
   return error("internal_server_error", "The request could not be completed.", 500);
 }
 
@@ -391,7 +539,7 @@ export async function handleCatalog(
 
     return error("invalid_request", "Unknown catalog resource.", 404);
   } catch (cause) {
-    return databaseFailure(cause, `catalog.${resource}`);
+    return await databaseFailure(cause, `catalog.${resource}`);
   }
 }
 
@@ -444,7 +592,7 @@ export async function handleCreateQuote(
     });
     if (dbError) throw dbError;
     const result = Array.isArray(data) ? data[0] : data;
-    if (!result) return databaseFailure(new Error("Quote RPC returned no result"), "quote");
+    if (!result) return await databaseFailure(new Error("Quote RPC returned no result"), "quote");
     if (result.result_status !== "CREATED") {
       const responses: Record<string, { code: ApiErrorCode; message: string; status: number }> = {
         INVALID_REQUEST: {
@@ -501,7 +649,7 @@ export async function handleCreateQuote(
       201,
     );
   } catch (cause) {
-    return databaseFailure(cause, "quote");
+    return await databaseFailure(cause, "quote");
   }
 }
 
@@ -548,7 +696,8 @@ export async function handleCreateBooking(
     });
     if (dbError) throw dbError;
     const result = Array.isArray(data) ? data[0] : data;
-    if (!result) return databaseFailure(new Error("Booking RPC returned no result"), "booking");
+    if (!result)
+      return await databaseFailure(new Error("Booking RPC returned no result"), "booking");
     if (result.result_status === "CREATED")
       return json({ booking: result.booking, replayed: false }, 201);
     if (result.result_status === "REPLAYED")
@@ -592,7 +741,7 @@ export async function handleCreateBooking(
     };
     return error(mapped.code, mapped.message, mapped.status);
   } catch (cause) {
-    return databaseFailure(cause, "booking");
+    return await databaseFailure(cause, "booking");
   }
 }
 
