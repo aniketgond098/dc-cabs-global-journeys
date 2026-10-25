@@ -8,15 +8,11 @@ const base =
   "group inline-flex min-h-12 items-center justify-center gap-3 px-6 text-[0.75rem] font-semibold uppercase tracking-[0.2em] transition-all duration-300";
 export const btn = {
   primary: cn(base, "bg-primary text-primary-foreground hover:bg-foreground hover:text-background"),
-  outline: cn(
-    base,
-    "border border-hairline text-foreground hover:border-foreground hover:bg-foreground hover:text-background",
-  ),
+  outline: cn(base, "border border-hairline text-foreground hover:border-foreground hover:bg-foreground hover:text-background"),
   ghost: cn(base, "px-0 text-foreground hover:text-primary"),
 };
 
-type To =
-  "/" | "/fleet" | "/corporate-mobility" | "/india-tours" | "/destinations" | "/about" | "/contact";
+type To = "/" | "/fleet" | "/corporate-mobility" | "/india-tours" | "/destinations" | "/about" | "/contact";
 
 export function CTALink({
   to,
@@ -55,20 +51,13 @@ export function SectionHeading({
   return (
     <Reveal className={cn("max-w-4xl", align === "center" && "mx-auto text-center", className)}>
       {eyebrow && (
-        <p
-          className={cn(
-            "eyebrow mb-6 flex items-center gap-3",
-            align === "center" && "justify-center",
-          )}
-        >
+        <p className={cn("eyebrow mb-6 flex items-center gap-3", align === "center" && "justify-center")}>
           <span className="h-px w-8 bg-primary" />
           {eyebrow}
         </p>
       )}
       <h2 className="font-display text-4xl font-bold uppercase sm:text-6xl lg:text-7xl">{title}</h2>
-      {intro && (
-        <p className="mt-8 max-w-2xl text-lg leading-relaxed text-muted-foreground">{intro}</p>
-      )}
+      {intro && <p className="mt-8 max-w-2xl text-lg leading-relaxed text-muted-foreground">{intro}</p>}
     </Reveal>
   );
 }
@@ -88,11 +77,7 @@ export function PageHero({
 }) {
   return (
     <section className="relative flex min-h-[88svh] items-end overflow-hidden">
-      <img
-        src={image}
-        alt=""
-        className="animate-slow-zoom absolute inset-0 size-full object-cover"
-      />
+      <img src={image} alt="" className="animate-slow-zoom absolute inset-0 size-full object-cover" />
       <div className="bg-scrim absolute inset-0" />
       <div className="bg-scrim-side absolute inset-0" />
       <div className="container-x relative pb-16 pt-40 md:pb-24">
@@ -101,9 +86,7 @@ export function PageHero({
             <span className="h-px w-8 bg-primary" />
             {eyebrow}
           </p>
-          <h1 className="font-display max-w-5xl text-5xl font-bold uppercase sm:text-7xl lg:text-8xl">
-            {title}
-          </h1>
+          <h1 className="font-display max-w-5xl text-5xl font-bold uppercase sm:text-7xl lg:text-8xl">{title}</h1>
           <p className="mt-8 max-w-xl text-lg leading-relaxed text-foreground/75">{intro}</p>
           {children && <div className="mt-10 flex flex-wrap gap-4">{children}</div>}
         </Reveal>

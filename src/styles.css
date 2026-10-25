@@ -63,18 +63,8 @@
   --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.58 0.24 27);
   --whatsapp: oklch(0.62 0.15 150);
-  --scrim: linear-gradient(
-    180deg,
-    oklch(0.12 0.005 285 / 0.55) 0%,
-    oklch(0.12 0.005 285 / 0.1) 40%,
-    oklch(0.12 0.005 285 / 0.95) 100%
-  );
-  --scrim-side: linear-gradient(
-    90deg,
-    oklch(0.12 0.005 285 / 0.92) 0%,
-    oklch(0.12 0.005 285 / 0.4) 55%,
-    oklch(0.12 0.005 285 / 0) 100%
-  );
+  --scrim: linear-gradient(180deg, oklch(0.12 0.005 285 / 0.55) 0%, oklch(0.12 0.005 285 / 0.1) 40%, oklch(0.12 0.005 285 / 0.95) 100%);
+  --scrim-side: linear-gradient(90deg, oklch(0.12 0.005 285 / 0.92) 0%, oklch(0.12 0.005 285 / 0.4) 55%, oklch(0.12 0.005 285 / 0) 100%);
 }
 
 @layer base {
@@ -141,21 +131,15 @@
 }
 
 @keyframes slow-zoom {
-  from {
-    transform: scale(1.12);
-  }
-  to {
-    transform: scale(1);
-  }
+  from { transform: scale(1.12); }
+  to { transform: scale(1); }
 }
 @utility animate-slow-zoom {
   animation: slow-zoom 2.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
 @keyframes dash {
-  to {
-    stroke-dashoffset: 0;
-  }
+  to { stroke-dashoffset: 0; }
 }
 @utility arc-draw {
   stroke-dasharray: 600;
@@ -164,29 +148,14 @@
 }
 
 @keyframes pulse-ring {
-  0% {
-    r: 2;
-    opacity: 0.8;
-  }
-  100% {
-    r: 9;
-    opacity: 0;
-  }
+  0% { r: 2; opacity: 0.8; }
+  100% { r: 9; opacity: 0; }
 }
 @utility pulse-ring {
   animation: pulse-ring 2.4s ease-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reveal {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
-  .animate-slow-zoom,
-  .arc-draw,
-  .pulse-ring {
-    animation: none;
-    stroke-dashoffset: 0;
-  }
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .animate-slow-zoom, .arc-draw, .pulse-ring { animation: none; stroke-dashoffset: 0; }
 }

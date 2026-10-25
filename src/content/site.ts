@@ -31,6 +31,7 @@ export const nav = [
   { to: "/corporate-mobility", label: "Corporate Mobility" },
   { to: "/india-tours", label: "India Tours" },
   { to: "/destinations", label: "Destinations" },
+  { to: "/book", label: "Book online" },
   { to: "/about", label: "About" },
   { to: "/contact", label: "Contact" },
 ] as const;
@@ -43,35 +44,12 @@ export const stats = [
 ];
 
 export const services: { title: string; body: string; image?: string }[] = [
-  {
-    title: "Executive Airport Transfers",
-    body: "Met on arrival, moved without friction — punctual pickups timed to every flight.",
-  },
-  {
-    title: "Chauffeur-Driven Mobility",
-    body: "Trained, uniformed, English-speaking chauffeurs for every hour of the itinerary.",
-    image: luxury,
-  },
-  {
-    title: "Corporate Travel",
-    body: "Daily corporate movement and outstation travel, coordinated with real-time dispatch.",
-    image: corporate,
-  },
-  {
-    title: "VIP & Luxury Transportation",
-    body: "Premium sedans and SUVs for C-suite executives, dignitaries and high-profile guests.",
-    image: hero,
-  },
-  {
-    title: "MICE & Delegation Mobility",
-    body: "Group transfers, coaches and event logistics for conferences and delegations.",
-    image: coach,
-  },
-  {
-    title: "Customized Tours",
-    body: "Tailor-made India itineraries and international destination mobility, end to end.",
-    image: taj,
-  },
+  { title: "Executive Airport Transfers", body: "Met on arrival, moved without friction — punctual pickups timed to every flight.", },
+  { title: "Chauffeur-Driven Mobility", body: "Trained, uniformed, English-speaking chauffeurs for every hour of the itinerary.", image: luxury },
+  { title: "Corporate Travel", body: "Daily corporate movement and outstation travel, coordinated with real-time dispatch.", image: corporate },
+  { title: "VIP & Luxury Transportation", body: "Premium sedans and SUVs for C-suite executives, dignitaries and high-profile guests.", image: hero },
+  { title: "MICE & Delegation Mobility", body: "Group transfers, coaches and event logistics for conferences and delegations.", image: coach },
+  { title: "Customized Tours", body: "Tailor-made India itineraries and international destination mobility, end to end.", image: taj },
 ];
 
 export const fleet = [
@@ -106,33 +84,13 @@ export const fleet = [
 ];
 
 export const keyHubs = [
-  "Delhi (NCR)",
-  "Mumbai",
-  "Bengaluru",
-  "Chennai",
-  "Kolkata",
-  "Hyderabad",
-  "Pune",
-  "Ahmedabad",
-  "Jaipur",
-  "Agra",
-  "Goa",
-  "Kochi / Kerala",
+  "Delhi (NCR)", "Mumbai", "Bengaluru", "Chennai", "Kolkata", "Hyderabad",
+  "Pune", "Ahmedabad", "Jaipur", "Agra", "Goa", "Kochi / Kerala",
 ];
 
 export const extendedNetwork = [
-  "Surat",
-  "Chandigarh",
-  "Indore",
-  "Lucknow",
-  "Coimbatore",
-  "Visakhapatnam",
-  "Guwahati",
-  "Jammu",
-  "Srinagar",
-  "Varanasi",
-  "Amritsar",
-  "Udaipur",
+  "Surat", "Chandigarh", "Indore", "Lucknow", "Coimbatore", "Visakhapatnam",
+  "Guwahati", "Jammu", "Srinagar", "Varanasi", "Amritsar", "Udaipur",
 ];
 
 /** [lon, lat] for map plotting */
@@ -185,11 +143,7 @@ export const worldDestinations: { name: string; at: [number, number] }[] = [
 export const regions = [
   { name: "India", places: ["45+ cities across the country"], image: taj },
   { name: "Middle East", places: ["Dubai", "Abu Dhabi"], image: dubai },
-  {
-    name: "Europe",
-    places: ["Azerbaijan", "Germany", "France", "Spain", "Switzerland", "Russia", "Poland"],
-    image: europe,
-  },
+  { name: "Europe", places: ["Azerbaijan", "Germany", "France", "Spain", "Switzerland", "Russia", "Poland"], image: europe },
   { name: "Asia", places: ["Thailand", "Bali", "Sri Lanka"], image: asia },
   { name: "North America", places: ["USA"] },
   { name: "Oceania", places: ["Australia"] },
@@ -200,54 +154,19 @@ export const footerDestinations =
   "India · Dubai · Abu Dhabi · Azerbaijan · Thailand · Bali · USA · Germany · Australia · France · Spain · Switzerland · Russia · Poland · South Africa · Sri Lanka · Mauritius";
 
 export const differentiators = [
-  {
-    title: "Custom India Tour Packages",
-    body: "Tailor-made leisure, Golden Triangle, corporate retreats and holiday itineraries designed to showcase the best of India to international guests.",
-  },
-  {
-    title: "Pan-India Presence",
-    body: "Seamless service across 45+ cities, including key hubs like Delhi (NCR), Mumbai, Bengaluru, Jaipur, Agra, Goa, Kerala and Hyderabad.",
-  },
-  {
-    title: "Specialized & Verified Chauffeurs",
-    body: "Professionally trained, uniformed, English-speaking and background-checked chauffeurs skilled in handling international travelers with care.",
-  },
-  {
-    title: "Modern Tech-Enabled Fleet",
-    body: "GPS tracking, 24/7 operations support, real-time dispatch and automated billing for punctual, transparent movements.",
-  },
+  { title: "Custom India Tour Packages", body: "Tailor-made leisure, Golden Triangle, corporate retreats and holiday itineraries designed to showcase the best of India to international guests." },
+  { title: "Pan-India Presence", body: "Seamless service across 45+ cities, including key hubs like Delhi (NCR), Mumbai, Bengaluru, Jaipur, Agra, Goa, Kerala and Hyderabad." },
+  { title: "Specialized & Verified Chauffeurs", body: "Professionally trained, uniformed, English-speaking and background-checked chauffeurs skilled in handling international travelers with care." },
+  { title: "Modern Tech-Enabled Fleet", body: "GPS tracking, 24/7 operations support, real-time dispatch and automated billing for punctual, transparent movements." },
 ];
 
 export const tours: { title: string; body: string; image?: string }[] = [
-  {
-    title: "Golden Triangle",
-    body: "Delhi, Agra and Jaipur — India's classic circuit, paced around your guests.",
-    image: taj,
-  },
-  {
-    title: "Leisure Journeys",
-    body: "Unhurried travel through coastlines, hill stations and backwaters.",
-    image: kerala,
-  },
-  {
-    title: "Corporate Retreats",
-    body: "Offsites and incentive travel with every transfer coordinated.",
-    image: coach,
-  },
-  {
-    title: "Holiday Itineraries",
-    body: "Family and group holidays shaped around the way you like to travel.",
-    image: hero,
-  },
-  {
-    title: "Sightseeing",
-    body: "City and heritage sightseeing with chauffeurs who know the route.",
-  },
-  {
-    title: "Customized Itineraries",
-    body: "Tell us the brief. We design the journey, end to end.",
-    image: europe,
-  },
+  { title: "Golden Triangle", body: "Delhi, Agra and Jaipur — India's classic circuit, paced around your guests.", image: taj },
+  { title: "Leisure Journeys", body: "Unhurried travel through coastlines, hill stations and backwaters.", image: kerala },
+  { title: "Corporate Retreats", body: "Offsites and incentive travel with every transfer coordinated.", image: coach },
+  { title: "Holiday Itineraries", body: "Family and group holidays shaped around the way you like to travel.", image: hero },
+  { title: "Sightseeing", body: "City and heritage sightseeing with chauffeurs who know the route.", },
+  { title: "Customized Itineraries", body: "Tell us the brief. We design the journey, end to end.", image: europe },
 ];
 
 export const requirementTypes = [
