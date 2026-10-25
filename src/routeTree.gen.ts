@@ -16,6 +16,9 @@ import { Route as CorporateMobilityRouteImport } from './routes/corporate-mobili
 import { Route as DestinationsRouteImport } from './routes/destinations'
 import { Route as FleetRouteImport } from './routes/fleet'
 import { Route as IndiaToursRouteImport } from './routes/india-tours'
+import { Route as ApiV1BookingsRouteImport } from './routes/api/v1/bookings'
+import { Route as ApiV1QuotesRouteImport } from './routes/api/v1/quotes'
+import { Route as ApiV1CatalogResourceRouteImport } from './routes/api/v1/catalog/$resource'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +55,21 @@ const IndiaToursRoute = IndiaToursRouteImport.update({
   path: '/india-tours',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1BookingsRoute = ApiV1BookingsRouteImport.update({
+  id: '/api/v1/bookings',
+  path: '/api/v1/bookings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1QuotesRoute = ApiV1QuotesRouteImport.update({
+  id: '/api/v1/quotes',
+  path: '/api/v1/quotes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1CatalogResourceRoute = ApiV1CatalogResourceRouteImport.update({
+  id: '/api/v1/catalog/$resource',
+  path: '/api/v1/catalog/$resource',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -61,6 +79,9 @@ export interface FileRoutesByFullPath {
   '/destinations': typeof DestinationsRoute
   '/fleet': typeof FleetRoute
   '/india-tours': typeof IndiaToursRoute
+  '/api/v1/bookings': typeof ApiV1BookingsRoute
+  '/api/v1/quotes': typeof ApiV1QuotesRoute
+  '/api/v1/catalog/$resource': typeof ApiV1CatalogResourceRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +91,9 @@ export interface FileRoutesByTo {
   '/destinations': typeof DestinationsRoute
   '/fleet': typeof FleetRoute
   '/india-tours': typeof IndiaToursRoute
+  '/api/v1/bookings': typeof ApiV1BookingsRoute
+  '/api/v1/quotes': typeof ApiV1QuotesRoute
+  '/api/v1/catalog/$resource': typeof ApiV1CatalogResourceRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +104,9 @@ export interface FileRoutesById {
   '/destinations': typeof DestinationsRoute
   '/fleet': typeof FleetRoute
   '/india-tours': typeof IndiaToursRoute
+  '/api/v1/bookings': typeof ApiV1BookingsRoute
+  '/api/v1/quotes': typeof ApiV1QuotesRoute
+  '/api/v1/catalog/$resource': typeof ApiV1CatalogResourceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +118,9 @@ export interface FileRouteTypes {
     | '/destinations'
     | '/fleet'
     | '/india-tours'
+    | '/api/v1/bookings'
+    | '/api/v1/quotes'
+    | '/api/v1/catalog/$resource'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,6 +130,9 @@ export interface FileRouteTypes {
     | '/destinations'
     | '/fleet'
     | '/india-tours'
+    | '/api/v1/bookings'
+    | '/api/v1/quotes'
+    | '/api/v1/catalog/$resource'
   id:
     | '__root__'
     | '/'
@@ -109,6 +142,9 @@ export interface FileRouteTypes {
     | '/destinations'
     | '/fleet'
     | '/india-tours'
+    | '/api/v1/bookings'
+    | '/api/v1/quotes'
+    | '/api/v1/catalog/$resource'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -119,6 +155,9 @@ export interface RootRouteChildren {
   DestinationsRoute: typeof DestinationsRoute
   FleetRoute: typeof FleetRoute
   IndiaToursRoute: typeof IndiaToursRoute
+  ApiV1BookingsRoute: typeof ApiV1BookingsRoute
+  ApiV1QuotesRoute: typeof ApiV1QuotesRoute
+  ApiV1CatalogResourceRoute: typeof ApiV1CatalogResourceRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -172,6 +211,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndiaToursRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/bookings': {
+      id: '/api/v1/bookings'
+      path: '/api/v1/bookings'
+      fullPath: '/api/v1/bookings'
+      preLoaderRoute: typeof ApiV1BookingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/quotes': {
+      id: '/api/v1/quotes'
+      path: '/api/v1/quotes'
+      fullPath: '/api/v1/quotes'
+      preLoaderRoute: typeof ApiV1QuotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/catalog/$resource': {
+      id: '/api/v1/catalog/$resource'
+      path: '/api/v1/catalog/$resource'
+      fullPath: '/api/v1/catalog/$resource'
+      preLoaderRoute: typeof ApiV1CatalogResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -183,6 +243,9 @@ const rootRouteChildren: RootRouteChildren = {
   DestinationsRoute: DestinationsRoute,
   FleetRoute: FleetRoute,
   IndiaToursRoute: IndiaToursRoute,
+  ApiV1BookingsRoute: ApiV1BookingsRoute,
+  ApiV1QuotesRoute: ApiV1QuotesRoute,
+  ApiV1CatalogResourceRoute: ApiV1CatalogResourceRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
