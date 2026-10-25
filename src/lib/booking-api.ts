@@ -113,7 +113,75 @@ function error(code: ApiErrorCode, message: string, status: number): Response {
   return json({ error: { code, message } }, status);
 }
 
-function databaseFailure(): Response {
+type SelectedSupabaseKey = "SUPABASE_SECRET_KEY" | "SUPABASE_SERVICE_ROLE_KEY" | "none";
+
+function runtimeEnvironment(): Record<string, string | undefined> {
+  return typeof process === "undefined" ? {} : process.env;
+}
+
+function selectedSupabaseKey(env: Record<string, string | undefined>): SelectedSupabaseKey {
+  if (env["SUPABASE_SECRET_KEY"] !== undefined) return "SUPABASE_SECRET_KEY";
+  if (env["SUPABASE_SERVICE_ROLE_KEY"] !== undefined) return "SUPABASE_SERVICE_ROLE_KEY";
+  return "none";
+}
+
+function redactDiagnosticMessage(message: string, env: Record<string, string | undefined>): string {
+  let redacted = message;
+  for (const secret of [env["SUPABASE_SECRET_KEY"], env["SUPABASE_SERVICE_ROLE_KEY"]]) {
+    if (secret) redacted = redacted.split(secret).join("[REDACTED]");
+  }
+  return redacted
+    .replace(/\b(?:sb_secret|sb_publishable)_[A-Za-z0-9_-]+\b/gi, "[REDACTED]")
+    .replace(/\beyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}(?:\.[A-Za-z0-9_-]+)?\b/g, "[REDACTED]")
+    .replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [REDACTED]")
+    .replace(/\b(authorization|api[_-]?key|apikey)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
+    .slice(0, 500);
+}
+
+function logDatabaseFailure(cause: unknown, area: string): void {
+  const runtimeProcess = typeof process === "undefined" ? undefined : process;
+  const env = runtimeProcess?.env ?? {};
+  const keyName = selectedSupabaseKey(env);
+  const key = keyName === "none" ? undefined : env[keyName];
+  const errorValue =
+    cause !== null && typeof cause === "object"
+      ? (cause as { code?: unknown; message?: unknown })
+      : undefined;
+  const code =
+    typeof errorValue?.code === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(errorValue.code)
+      ? errorValue.code
+      : null;
+  const message =
+    typeof errorValue?.message === "string"
+      ? errorValue.message
+      : cause instanceof Error
+        ? cause.message
+        : "Unknown database or runtime error";
+  const platform =
+    env["NETLIFY"] === "true"
+      ? "netlify"
+      : env["AWS_LAMBDA_FUNCTION_NAME"]
+        ? "aws_lambda"
+        : "unknown";
+
+  console.error(
+    "[booking-api] database failure",
+    JSON.stringify({
+      area,
+      platform,
+      runtime: runtimeProcess?.release?.name ?? "unknown",
+      node_version: runtimeProcess?.version ?? null,
+      supabase_url_configured: Boolean(env["SUPABASE_URL"]),
+      supabase_key_configured: Boolean(key),
+      selected_key_type: keyName,
+      supabase_error_code: code,
+      supabase_error_message: redactDiagnosticMessage(message, env),
+    }),
+  );
+}
+
+function databaseFailure(cause: unknown, area: string): Response {
+  logDatabaseFailure(cause, area);
   return error("internal_server_error", "The request could not be completed.", 500);
 }
 
@@ -154,7 +222,7 @@ async function readJson(request: Request): Promise<unknown> {
 class RequestValidationError extends Error {}
 
 export function createBookingDatabase(
-  env: Record<string, string | undefined> = process.env,
+  env: Record<string, string | undefined> = runtimeEnvironment(),
 ): BookingDatabase {
   const url = env["SUPABASE_URL"];
   const key = env["SUPABASE_SECRET_KEY"] ?? env["SUPABASE_SERVICE_ROLE_KEY"];
@@ -322,8 +390,8 @@ export async function handleCatalog(
     }
 
     return error("invalid_request", "Unknown catalog resource.", 404);
-  } catch {
-    return databaseFailure();
+  } catch (cause) {
+    return databaseFailure(cause, `catalog.${resource}`);
   }
 }
 
@@ -376,7 +444,7 @@ export async function handleCreateQuote(
     });
     if (dbError) throw dbError;
     const result = Array.isArray(data) ? data[0] : data;
-    if (!result) return databaseFailure();
+    if (!result) return databaseFailure(new Error("Quote RPC returned no result"), "quote");
     if (result.result_status !== "CREATED") {
       const responses: Record<string, { code: ApiErrorCode; message: string; status: number }> = {
         INVALID_REQUEST: {
@@ -432,8 +500,8 @@ export async function handleCreateQuote(
       },
       201,
     );
-  } catch {
-    return databaseFailure();
+  } catch (cause) {
+    return databaseFailure(cause, "quote");
   }
 }
 
@@ -480,7 +548,7 @@ export async function handleCreateBooking(
     });
     if (dbError) throw dbError;
     const result = Array.isArray(data) ? data[0] : data;
-    if (!result) return databaseFailure();
+    if (!result) return databaseFailure(new Error("Booking RPC returned no result"), "booking");
     if (result.result_status === "CREATED")
       return json({ booking: result.booking, replayed: false }, 201);
     if (result.result_status === "REPLAYED")
@@ -523,8 +591,8 @@ export async function handleCreateBooking(
       status: 500,
     };
     return error(mapped.code, mapped.message, mapped.status);
-  } catch {
-    return databaseFailure();
+  } catch (cause) {
+    return databaseFailure(cause, "booking");
   }
 }
 
@@ -532,7 +600,7 @@ export function createServerDatabaseForRequest(): BookingDatabase {
   let database: BookingDatabase | undefined;
   return new Proxy({} as BookingDatabase, {
     get(_target, property) {
-      database ??= createBookingDatabase(process.env);
+      database ??= createBookingDatabase(runtimeEnvironment());
       const value: unknown = Reflect.get(database, property, database);
       return typeof value === "function" ? value.bind(database) : value;
     },

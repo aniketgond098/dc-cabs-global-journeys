@@ -67,7 +67,10 @@ const bookingPayload = {
   },
 };
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
 describe("catalog endpoints", () => {
   it("returns active catalog records and applies active filtering", async () => {
@@ -109,6 +112,53 @@ describe("catalog endpoints", () => {
     );
     expect(response.status).toBe(404);
     expect(calls).toHaveLength(0);
+  });
+
+  it("logs redacted Supabase diagnostics while returning a generic database error", async () => {
+    const supabaseUrl = "https://example.supabase.co";
+    const secretCanary = "diagnostic-canary-value-not-for-logs";
+    vi.stubEnv("SUPABASE_URL", supabaseUrl);
+    vi.stubEnv("SUPABASE_SECRET_KEY", secretCanary);
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "legacy-key-canary-value");
+    vi.stubEnv("NETLIFY", "true");
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { database } = makeDatabase({
+      tableResults: {
+        countries: {
+          data: null,
+          error: {
+            code: "PGRST301",
+            message: `Authorization: Bearer ${secretCanary}`,
+          },
+        },
+      },
+    });
+
+    const response = await handleCatalog(
+      new Request("https://site.test/api/v1/catalog/countries"),
+      "countries",
+      database,
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: { code: "internal_server_error", message: "The request could not be completed." },
+    });
+    expect(errorLog).toHaveBeenCalledOnce();
+    const diagnostic = JSON.parse(String(errorLog.mock.calls[0]?.[1])) as Record<string, unknown>;
+    expect(diagnostic).toMatchObject({
+      area: "catalog.countries",
+      platform: "netlify",
+      supabase_url_configured: true,
+      supabase_key_configured: true,
+      selected_key_type: "SUPABASE_SECRET_KEY",
+      supabase_error_code: "PGRST301",
+    });
+    const serializedDiagnostic = JSON.stringify(diagnostic);
+    expect(serializedDiagnostic).toContain("[REDACTED]");
+    expect(serializedDiagnostic).not.toContain(supabaseUrl);
+    expect(serializedDiagnostic).not.toContain(secretCanary);
+    expect(serializedDiagnostic).not.toContain("legacy-key-canary-value");
   });
 
   it("does not expose locations beneath a city with an inactive country", async () => {
