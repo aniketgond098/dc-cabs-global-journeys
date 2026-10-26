@@ -45,7 +45,7 @@ export function BookingRouteMap({
         destinationMarker = new mapboxgl.Marker({ color: "#f2eee8" });
         map.on("error", () =>
           setMapError(
-            "The map could not be loaded. Check Mapbox configuration and network access.",
+            "Route preview unavailable. Check Mapbox configuration and network access; booking can continue without it.",
           ),
         );
         map.once("load", () => {
@@ -66,7 +66,9 @@ export function BookingRouteMap({
             )
               .then(async (response) => {
                 if (!response.ok)
-                  throw new Error("A route preview is unavailable for this journey.");
+                  throw new Error(
+                    "Route preview unavailable. You can continue booking without the estimate.",
+                  );
                 const body = (await response.json()) as {
                   routes?: {
                     distance: number;
@@ -76,7 +78,9 @@ export function BookingRouteMap({
                 };
                 const route = body.routes?.[0];
                 if (!route || disposed || !map)
-                  throw new Error("A driving route could not be found.");
+                  throw new Error(
+                    "Route preview unavailable. You can continue booking without the estimate.",
+                  );
                 map.addSource("dc-route", { type: "geojson", data: route.geometry });
                 map.addLayer({
                   id: "dc-route-line",
@@ -101,7 +105,9 @@ export function BookingRouteMap({
               .catch((cause: unknown) => {
                 if (!disposed) {
                   setMapError(
-                    cause instanceof Error ? cause.message : "A route preview is unavailable.",
+                    cause instanceof Error
+                      ? cause.message
+                      : "Route preview unavailable. You can continue booking without the estimate.",
                   );
                   onRoute(null);
                 }
@@ -112,7 +118,8 @@ export function BookingRouteMap({
         });
       })
       .catch(() => {
-        if (!disposed) setMapError("The interactive map could not be started.");
+        if (!disposed)
+          setMapError("Route preview unavailable. You can continue booking without the estimate.");
       });
 
     return () => {
@@ -129,8 +136,8 @@ export function BookingRouteMap({
         <div>
           <p className="eyebrow text-primary">Journey preview</p>
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            Select your pickup and destination to preview your journey. The interactive map needs
-            VITE_MAPBOX_ACCESS_TOKEN.
+            Route preview unavailable because VITE_MAPBOX_ACCESS_TOKEN is not configured. Booking
+            can continue with active catalog locations.
           </p>
         </div>
       </div>

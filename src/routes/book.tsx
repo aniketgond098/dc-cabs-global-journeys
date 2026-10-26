@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { BookingRouteMap, type RouteEstimate } from "@/components/booking/BookingRouteMap";
+import { BookingProgress } from "@/components/booking/BookingProgress";
 import { JourneyLocation, LocationSearch } from "@/components/booking/LocationSearch";
 import { PaymentCheckout } from "@/components/booking/PaymentCheckout";
 import { VehicleCategoryCard, type Category } from "@/components/booking/VehicleCategoryCard";
+import { canContinueJourney } from "@/lib/booking-journey";
 
 type TripType = "local" | "outstation" | "airport_transfer";
 type Quote = {
@@ -24,7 +26,6 @@ type Booking = {
   customer: { fullName: string; email: string; phone: string };
 };
 
-const steps = ["Journey", "Vehicle", "Fare", "Details", "Review", "Payment"] as const;
 const packages: Record<TripType, { value: string; label: string }[]> = {
   local: [
     { value: "4hr_40km", label: "4 hours · 40 km" },
@@ -49,24 +50,6 @@ function money(value: unknown, currency: string) {
 
 function titleForComponent(value: string) {
   return value.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase());
-}
-
-function StepHeader({ current }: { current: number }) {
-  return (
-    <ol aria-label="Booking progress" className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-      {steps.map((step, index) => (
-        <li key={step} aria-current={current === index + 1 ? "step" : undefined}>
-          <div className={`h-px ${current >= index + 1 ? "bg-primary" : "bg-border"}`} />
-          <p
-            className={`mt-3 text-[10px] font-semibold uppercase tracking-[0.15em] sm:text-xs ${current >= index + 1 ? "text-foreground" : "text-muted-foreground"}`}
-          >
-            <span className="mr-2 text-primary">0{index + 1}</span>
-            {step}
-          </p>
-        </li>
-      ))}
-    </ol>
-  );
 }
 
 function JourneyRow({
@@ -218,7 +201,7 @@ function BookingPage() {
   }
 
   async function requestQuote() {
-    if (!pickup?.id || !destination?.id || !pickupAt || !vehicleId || !routeEstimate) return;
+    if (!pickup?.id || !destination?.id || !pickupAt || !vehicleId) return;
     setBusy(true);
     setMessage("");
     setPricingUnavailable(false);
@@ -236,8 +219,12 @@ function BookingPage() {
           vehicleCategoryId: vehicleId,
           passengerCount: passengers,
           tripDays,
-          estimatedDistanceKm: Number(routeEstimate.distanceKm.toFixed(2)),
-          estimatedDurationHours: Number(routeEstimate.durationHours.toFixed(2)),
+          ...(routeEstimate
+            ? {
+                estimatedDistanceKm: Number(routeEstimate.distanceKm.toFixed(2)),
+                estimatedDurationHours: Number(routeEstimate.durationHours.toFixed(2)),
+              }
+            : {}),
         }),
       });
       const result = (await response.json()) as
@@ -301,16 +288,12 @@ function BookingPage() {
     }
   }
 
-  const canContinueJourney = Boolean(
-    pickup?.id &&
-    pickup.bookable &&
-    destination?.id &&
-    destination.bookable &&
-    pickupAt &&
-    Date.parse(pickupAt) > Date.now() &&
-    routeEstimate &&
-    !categoriesError,
-  );
+  const journeyReady = canContinueJourney({
+    pickup,
+    destination,
+    pickupAt,
+    categoriesError,
+  });
   const canContinueVehicle = Boolean(
     selectedCategory && passengers <= selectedCategory.passenger_capacity,
   );
@@ -335,7 +318,7 @@ function BookingPage() {
         </div>
 
         <div className="mt-12 border-y border-border py-6">
-          <StepHeader current={step} />
+          <BookingProgress step={step - 1} onStep={(nextStep) => setStep(nextStep + 1)} />
         </div>
 
         {message ? (
@@ -510,9 +493,9 @@ function BookingPage() {
                 ) : null}
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Route distance and travel time are calculated from the driving preview and sent as
-                inputs to the server quote. The server applies the configured pricing rule and
-                returns the fare.
+                Mapbox route distance and travel time are optional estimates. When available, they
+                are sent to the server quote; the server applies the configured pricing rule and
+                returns the fare. No distance or duration is invented when Mapbox is unavailable.
               </p>
             </div>
 
@@ -545,7 +528,7 @@ function BookingPage() {
               ) : null}
               <button
                 type="button"
-                disabled={!canContinueJourney}
+                disabled={!journeyReady}
                 onClick={() => {
                   setMessage("");
                   setStep(2);
@@ -718,7 +701,7 @@ function BookingPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={busy || !routeEstimate}
+                  disabled={busy}
                   onClick={() => void requestQuote()}
                   className="bg-primary px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground disabled:opacity-40"
                 >

@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { findCatalogMatch, type CatalogLocation } from "./catalog-location-match";
+import {
+  CatalogLookupError,
+  findCatalogMatch,
+  searchCatalogLocations,
+  type CatalogLocation,
+} from "./catalog-location-match";
 
 export type JourneyLocation = {
   id?: string;
@@ -33,7 +38,11 @@ export function LocationSearch({
   const [suggestions, setSuggestions] = useState<MapboxSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [catalogSearching, setCatalogSearching] = useState(false);
+  const [mapboxSearching, setMapboxSearching] = useState(false);
+  const [catalogError, setCatalogError] = useState("");
+  const [mapboxError, setMapboxError] = useState("");
+  const [selectionError, setSelectionError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const sessionToken = useRef("");
   const abortRef = useRef<AbortController | null>(null);
@@ -46,30 +55,37 @@ export function LocationSearch({
     if (query.trim().length < 2) {
       setCatalogLocations([]);
       setSuggestions([]);
-      setError("");
+      setCatalogSearching(false);
+      setMapboxSearching(false);
       return;
     }
     setCatalogLocations([]);
     setSuggestions([]);
-    setError("");
+    setCatalogSearching(true);
+    setMapboxSearching(Boolean(MAPBOX_TOKEN));
     let active = true;
     const controller = new AbortController();
     abortRef.current?.abort();
     abortRef.current = controller;
     const timer = window.setTimeout(() => {
-      const params = new URLSearchParams({ search: query.trim() });
-      void fetch(`/api/v1/catalog/locations?${params}`, { signal: controller.signal })
-        .then(async (response) => {
-          if (!response.ok) throw new Error("Bookable locations could not be searched.");
-          const body = (await response.json()) as { data?: CatalogLocation[] };
-          if (active) setCatalogLocations(body.data ?? []);
+      void searchCatalogLocations(query.trim(), controller.signal)
+        .then((locations) => {
+          if (active) {
+            setCatalogLocations(locations);
+            setCatalogError("");
+            setCatalogSearching(false);
+          }
         })
         .catch(() => {
-          if (active && !controller.signal.aborted) setError("DC Cabs locations are unavailable.");
+          if (active && !controller.signal.aborted) {
+            setCatalogError("DC Cabs locations are temporarily unavailable. Please try again.");
+            setCatalogSearching(false);
+          }
         });
 
       if (!MAPBOX_TOKEN) {
         setSuggestions([]);
+        setMapboxSearching(false);
         return;
       }
       sessionToken.current ||= crypto.randomUUID();
@@ -88,11 +104,15 @@ export function LocationSearch({
           const body = (await response.json()) as { suggestions?: MapboxSuggestion[] };
           if (active) {
             setSuggestions(body.suggestions ?? []);
-            setError("");
+            setMapboxError("");
+            setMapboxSearching(false);
           }
         })
         .catch(() => {
-          if (active && !controller.signal.aborted) setError("Map location search is unavailable.");
+          if (active && !controller.signal.aborted) {
+            setMapboxError("Map location search is unavailable.");
+            setMapboxSearching(false);
+          }
         });
     }, 300);
     return () => {
@@ -104,7 +124,9 @@ export function LocationSearch({
 
   function selectCatalog(entry: CatalogLocation) {
     if (entry.latitude === null || entry.longitude === null) {
-      setError("This DC Cabs location needs map coordinates before it can be booked online.");
+      setSelectionError(
+        "This DC Cabs location needs map coordinates before it can be booked online.",
+      );
       return;
     }
     const location: JourneyLocation = {
@@ -118,13 +140,16 @@ export function LocationSearch({
     setQuery(location.label);
     onChange(location);
     setOpen(false);
-    setError("");
+    setCatalogError("");
+    setMapboxError("");
+    setSelectionError("");
   }
 
   async function selectMapbox(suggestion: MapboxSuggestion) {
     if (!MAPBOX_TOKEN) return;
     setBusy(true);
-    setError("");
+    setMapboxError("");
+    setSelectionError("");
     try {
       const params = new URLSearchParams({
         session_token: sessionToken.current,
@@ -156,17 +181,20 @@ export function LocationSearch({
       setQuery(chosen.label);
       onChange(chosen);
       setOpen(false);
+      setCatalogError("");
       sessionToken.current = crypto.randomUUID();
       if (!catalogMatch)
-        setError(
+        setSelectionError(
           "This place is outside the current online booking catalog. Contact our team to arrange it.",
         );
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Location search is unavailable. Please try again.",
-      );
+      if (cause instanceof CatalogLookupError) setCatalogError(cause.message);
+      else
+        setMapboxError(
+          cause instanceof Error
+            ? cause.message
+            : "Location search is unavailable. Please try again.",
+        );
     } finally {
       setBusy(false);
     }
@@ -191,7 +219,9 @@ export function LocationSearch({
         onChange={(event) => {
           setQuery(event.target.value);
           onChange(null);
-          setError("");
+          setCatalogError("");
+          setMapboxError("");
+          setSelectionError("");
           setOpen(true);
         }}
         onKeyDown={(event) => {
@@ -237,11 +267,11 @@ export function LocationSearch({
           ))}
           {!catalogLocations.length && !suggestions.length ? (
             <p className="px-4 py-3 text-sm text-muted-foreground">
-              {busy
+              {busy || catalogSearching || mapboxSearching
                 ? "Searching…"
                 : MAPBOX_TOKEN
                   ? "No matching places found."
-                  : "No catalog match. Mapbox is not configured."}
+                  : "No matching DC Cabs locations found."}
             </p>
           ) : null}
         </div>
@@ -253,12 +283,35 @@ export function LocationSearch({
             : "Map preview only · not in the booking catalog"}
         </p>
       ) : null}
-      {error ? (
+      {catalogError ? (
         <p role="status" className="mt-2 text-xs text-muted-foreground">
-          {error}{" "}
+          {catalogError}{" "}
           <button
             type="button"
-            onClick={() => setRetryCount((count) => count + 1)}
+            onClick={() => {
+              setCatalogError("");
+              setRetryCount((count) => count + 1);
+            }}
+            className="underline underline-offset-2"
+          >
+            Try again
+          </button>
+        </p>
+      ) : null}
+      {selectionError ? (
+        <p role="status" className="mt-2 text-xs text-muted-foreground">
+          {selectionError}
+        </p>
+      ) : null}
+      {mapboxError ? (
+        <p role="status" className="mt-2 text-xs text-muted-foreground">
+          {mapboxError}{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setMapboxError("");
+              setRetryCount((count) => count + 1);
+            }}
             className="underline underline-offset-2"
           >
             Try again
