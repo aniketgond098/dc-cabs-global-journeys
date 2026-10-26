@@ -515,6 +515,27 @@ export async function handleCatalog(
     }
 
     if (resource === "locations") {
+      const search = params.get("search")?.trim();
+      if (search !== undefined && search !== null) {
+        if (search.length < 2 || search.length > 100) {
+          return error("invalid_request", "Search must contain between 2 and 100 characters.", 400);
+        }
+        const escapedSearch = search.replace(/[\\%_]/g, "\\$&");
+        const { data, error: dbError } = await database
+          .from("locations")
+          .select(
+            "id,city_id,kind,name,address,latitude,longitude,cities!inner(is_active,countries!inner(is_active))",
+          )
+          .eq("is_active", true)
+          .eq("cities.is_active", true)
+          .eq("cities.countries.is_active", true)
+          .ilike("name", `%${escapedSearch}%`)
+          .limit(10);
+        if (dbError) throw dbError;
+        return json({
+          data: (data ?? []).map(({ cities: _cities, ...location }) => location),
+        });
+      }
       const cityId = parseUuidParam(params.get("city_id"));
       if (!cityId) return error("invalid_request", "A valid city_id is required.", 400);
       if (!(await activeParent(database, "cities", cityId)))

@@ -11,7 +11,7 @@ import { createBookingPaymentToken } from "@/lib/razorpay";
 
 function queryBuilder(result: { data: unknown; error: unknown }, calls: unknown[] = []) {
   const builder: Record<string, unknown> = {};
-  for (const method of ["select", "eq", "or", "order"]) {
+  for (const method of ["select", "eq", "or", "order", "ilike", "limit"]) {
     builder[method] = (...args: unknown[]) => {
       calls.push([method, ...args]);
       return builder;
@@ -114,6 +114,28 @@ describe("catalog endpoints", () => {
     );
     expect(response.status).toBe(404);
     expect(calls).toHaveLength(0);
+  });
+
+  it("searches only active bookable locations and bounds the result count", async () => {
+    const { database, calls } = makeDatabase({
+      tableResults: {
+        locations: { data: [{ id: "location-1", name: "Mumbai Airport T2" }], error: null },
+      },
+    });
+    const response = await handleCatalog(
+      new Request("https://site.test/api/v1/catalog/locations?search=Mumbai%20Airport"),
+      "locations",
+      database,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      data: [{ id: "location-1", name: "Mumbai Airport T2" }],
+    });
+    expect(calls[0]?.operations).toContainEqual(["eq", "is_active", true]);
+    expect(calls[0]?.operations).toContainEqual(["eq", "cities.is_active", true]);
+    expect(calls[0]?.operations).toContainEqual(["eq", "cities.countries.is_active", true]);
+    expect(calls[0]?.operations).toContainEqual(["ilike", "name", "%Mumbai Airport%"]);
+    expect(calls[0]?.operations).toContainEqual(["limit", 10]);
   });
 
   it("logs redacted Supabase diagnostics while returning a generic database error", async () => {

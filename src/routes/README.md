@@ -44,6 +44,8 @@ The current quote formula uses the selected rule's base fare, applicable distanc
 
 The server runtime needs `SUPABASE_URL` and `SUPABASE_SECRET_KEY`; the legacy `SUPABASE_SERVICE_ROLE_KEY` is also accepted. Set these as server secrets in the app's runtime. Do not use `VITE_` prefixes or expose these values to the browser.
 
+The `/book` page uses the public browser-side `VITE_MAPBOX_ACCESS_TOKEN` for Mapbox Search Box autocomplete, map tiles, and driving route previews. Restrict this token to the production site origins and enable the relevant Search Box, Directions, and Maps APIs in Mapbox. The booking flow remains usable for active catalog locations when the token is missing; Mapbox search and the interactive route map show an availability message. Mapbox results must match an active catalog location before they can be quoted.
+
 Razorpay checkout is test-mode locked. Configure `RAZORPAY_KEY_ID` with a `rzp_test_` key ID, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` as server-side Netlify environment variables. The API returns only the test key ID and an opaque per-booking payment token to the guest browser. The webhook endpoint must be configured for `payment.captured` and `payment.failed`; the webhook secret must match the secret configured in the Razorpay dashboard. Do not configure live keys with this implementation.
 
-Phase 3A has no location, category, availability, or pricing seed data. Catalog lists therefore remain empty and quote requests return `ONLINE_PRICING_UNAVAILABLE` until authorized catalog and city rate cards are added.
+The Phase 5A seed contains temporary Asian Paints test pricing. It is only for booking-engine validation and must not be presented as public DC Cabs rates. Online quotes require active catalog records, vehicle availability, and a matching pricing rule for the selected city and trip.
