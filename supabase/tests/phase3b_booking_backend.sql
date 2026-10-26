@@ -33,7 +33,7 @@ insert into public.pricing_rules (
   ('60000000-0000-4000-8000-000000000004', '50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', null, null, null, 400, 4, 40, 10, 50, 5, 20, 100, 25, 18, 'INR', now() - interval '1 day', true);
 
 do $$
-declare v_status text; v_rule uuid; v_quote uuid; v_expired_quote uuid; v_pricing jsonb; v_booking jsonb; v_booking_again jsonb; v_expiry timestamptz;
+declare v_status text; v_rule uuid; v_quote uuid; v_airport_quote uuid; v_expired_quote uuid; v_pricing jsonb; v_airport_pricing jsonb; v_booking jsonb; v_booking_again jsonb; v_expiry timestamptz; v_airport_pickup_at timestamptz;
 begin
   select r.resolution_status, r.pricing_rule_id into v_status, v_rule
   from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002', now()) r;
@@ -50,6 +50,27 @@ begin
   select r.resolution_status, r.pricing_rule_id into v_status, v_rule
   from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', null, null, null, now()) r;
   if v_status <> 'AVAILABLE' or v_rule <> '60000000-0000-4000-8000-000000000004' then raise exception 'General local city priority failed'; end if;
+
+  select r.resolution_status, r.pricing_rule_id into v_status, v_rule
+  from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'airport_transfer', 'airport_transfer', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002', now()) r;
+  if v_status <> 'AVAILABLE' or v_rule <> '60000000-0000-4000-8000-000000000001' then raise exception 'Airport transfer did not fall back to the configured local 4hr/40km rate'; end if;
+
+  v_airport_pickup_at := (date_trunc('day', (now() at time zone 'Asia/Kolkata') + interval '1 day') + interval '12 hours') at time zone 'Asia/Kolkata';
+  select q.result_status, q.quote_id, q.pricing into v_status, v_airport_quote, v_airport_pricing
+  from public.create_booking_quote(
+    'airport_transfer', 'airport_transfer', '40000000-0000-4000-8000-000000000001',
+    '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002',
+    v_airport_pickup_at, '50000000-0000-4000-8000-000000000001', 3::smallint, 1::smallint, 7.6::numeric, 0.4::numeric
+  ) q;
+  if v_status <> 'CREATED'
+    or v_airport_pricing->>'pricingRuleId' <> '60000000-0000-4000-8000-000000000001'
+    or v_airport_pricing #>> '{components,total}' <> '1333.40' then
+    raise exception 'Airport transfer quote did not use the server-calculated local fallback: %', v_airport_pricing;
+  end if;
+
+  select r.resolution_status into v_status
+  from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'airport_transfer', 'airport_transfer', '30000000-0000-4000-8000-000000000001', null, '30000000-0000-4000-8000-000000000002', null, now()) r;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' then raise exception 'Airport transfer incorrectly used local pricing across cities'; end if;
 
   select r.resolution_status into v_status
   from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'local', '8hr_80km', '30000000-0000-4000-8000-000000000001', null, null, null, now()) r;

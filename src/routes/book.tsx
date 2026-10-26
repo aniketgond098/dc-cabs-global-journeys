@@ -233,7 +233,9 @@ function BookingPage() {
         const apiError = "error" in result ? result.error : undefined;
         if (apiError?.code === "online_pricing_unavailable") {
           setPricingUnavailable(true);
-          setMessage("We don't currently have an online fare configured for this route.");
+          setMessage(
+            "Online fares aren't available for this journey yet. Request a quote from our team.",
+          );
         } else {
           setMessage(
             apiError?.message ??

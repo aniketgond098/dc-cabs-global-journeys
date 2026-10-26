@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => {
     addControl: vi.fn(),
     on: vi.fn(),
     once: vi.fn((_event: string, callback: () => void) => queueMicrotask(callback)),
+    resize: vi.fn(),
     addSource: vi.fn(),
     addLayer: vi.fn(),
     fitBounds: vi.fn(),
@@ -22,6 +23,7 @@ const mocks = vi.hoisted(() => {
     addControl = map.addControl;
     on = map.on;
     once = map.once;
+    resize = map.resize;
     addSource = map.addSource;
     addLayer = map.addLayer;
     fitBounds = map.fitBounds;
@@ -39,6 +41,7 @@ const mocks = vi.hoisted(() => {
   }
   return {
     map,
+    marker,
     Map: MapMock,
     Marker: MarkerMock,
     NavigationControl: NavigationControlMock,
@@ -107,8 +110,8 @@ describe("BookingRouteMap optional coordinates", () => {
           JSON.stringify({
             routes: [
               {
-                distance: 32450,
-                duration: 3750,
+                distance: 7600,
+                duration: 1440,
                 geometry: {
                   type: "LineString",
                   coordinates: [
@@ -124,7 +127,7 @@ describe("BookingRouteMap optional coordinates", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
+    const { container } = render(
       <BookingRouteMap
         pickup={{
           id: "pickup",
@@ -146,12 +149,14 @@ describe("BookingRouteMap optional coordinates", () => {
       />,
     );
 
-    await vi.waitFor(() =>
-      expect(onRoute).toHaveBeenCalledWith({
-        distanceKm: 32.45,
-        durationHours: 1.0416666666666667,
-      }),
-    );
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(onRoute).toHaveBeenCalledWith({
+          distanceKm: 7.6,
+          durationHours: 0.4,
+        }),
+      );
+    });
     const directionsUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
     expect(directionsUrl.hostname).toBe("api.mapbox.com");
     expect(directionsUrl.pathname).toBe(
@@ -165,7 +170,65 @@ describe("BookingRouteMap optional coordinates", () => {
       "dc-route",
       expect.objectContaining({ type: "geojson" }),
     );
+    expect(mocks.map.addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "dc-route-line", type: "line", source: "dc-route" }),
+    );
+    expect(mocks.map.resize).toHaveBeenCalled();
     expect(mocks.map.fitBounds).toHaveBeenCalled();
+    expect(mocks.map.addControl).toHaveBeenCalled();
+    expect(mocks.map.on).toHaveBeenCalledWith("error", expect.any(Function));
+    expect(mocks.marker.setLngLat).toHaveBeenNthCalledWith(1, [72.855744, 19.092617]);
+    expect(mocks.marker.setLngLat).toHaveBeenNthCalledWith(2, [72.865725, 19.067115]);
+    expect(container.querySelector("[aria-label='Interactive route map']")).toHaveClass(
+      "h-full",
+      "w-full",
+    );
+    expect(
+      container.querySelector("[aria-label='Interactive route map']")?.parentElement,
+    ).toHaveClass("absolute", "inset-0");
+  });
+
+  it("shows a full route-preview fallback when Mapbox cannot render the map", async () => {
+    vi.stubEnv("VITE_MAPBOX_ACCESS_TOKEN", "pk.test-token");
+    vi.resetModules();
+    const { BookingRouteMap } = await import("@/components/booking/BookingRouteMap");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 200 })),
+    );
+
+    render(
+      <BookingRouteMap
+        pickup={{
+          id: "pickup",
+          cityId: "city-1",
+          label: "Mumbai Airport Terminal 1",
+          context: "DC Cabs location",
+          coordinates: [72.855744, 19.092617],
+          bookable: true,
+        }}
+        destination={{
+          id: "destination",
+          cityId: "city-1",
+          label: "Bandra Kurla Complex (BKC)",
+          context: "DC Cabs location",
+          coordinates: [72.865725, 19.067115],
+          bookable: true,
+        }}
+        onRoute={vi.fn()}
+      />,
+    );
+
+    await vi.waitFor(() =>
+      expect(mocks.map.on).toHaveBeenCalledWith("error", expect.any(Function)),
+    );
+    const errorHandler = mocks.map.on.mock.calls.find(([event]) => event === "error")?.[1];
+    act(() => errorHandler?.());
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /route preview is temporarily unavailable.*continue with your booking/i,
+    );
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 
   it("keeps route failures optional when Mapbox returns unauthorized", async () => {

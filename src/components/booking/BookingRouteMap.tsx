@@ -17,6 +17,8 @@ export function BookingRouteMap({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mapError, setMapError] = useState("");
+  const [routeError, setRouteError] = useState("");
+  const [mapReady, setMapReady] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const coordinatesUnavailable = Boolean(
     (pickup && !pickup.coordinates) || (destination && !destination.coordinates),
@@ -25,11 +27,14 @@ export function BookingRouteMap({
   useEffect(() => {
     onRoute(null);
     setMapError("");
+    setRouteError("");
+    setMapReady(false);
     if (!MAPBOX_TOKEN || !containerRef.current) return;
     let disposed = false;
     let map: import("mapbox-gl").Map | null = null;
     let pickupMarker: import("mapbox-gl").Marker | null = null;
     let destinationMarker: import("mapbox-gl").Marker | null = null;
+    let resizeObserver: ResizeObserver | null = null;
     const pickupCoordinates = pickup?.coordinates ?? null;
     const destinationCoordinates = destination?.coordinates ?? null;
     if ((pickup && !pickupCoordinates) || (destination && !destinationCoordinates)) return;
@@ -52,78 +57,102 @@ export function BookingRouteMap({
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
         pickupMarker = new mapboxgl.Marker({ color: "#d12b36" });
         destinationMarker = new mapboxgl.Marker({ color: "#f2eee8" });
-        map.on("error", () =>
-          setMapError(
-            "The route preview is temporarily unavailable. You can continue with your booking.",
-          ),
-        );
+        const showMapError = () => {
+          if (!disposed) {
+            setMapReady(false);
+            onRoute(null);
+            setMapError(
+              "The route preview is temporarily unavailable. You can continue with your booking.",
+            );
+          }
+        };
+        map.on("error", showMapError);
+        if (typeof ResizeObserver !== "undefined") {
+          resizeObserver = new ResizeObserver(() => {
+            const container = containerRef.current;
+            if (container && container.clientWidth > 0 && container.clientHeight > 0) map?.resize();
+          });
+          resizeObserver.observe(containerRef.current);
+        }
         map.once("load", () => {
           if (disposed || !map) return;
-          setMapError("");
-          if (pickupCoordinates) pickupMarker?.setLngLat(pickupCoordinates).addTo(map);
-          if (destinationCoordinates)
-            destinationMarker?.setLngLat(destinationCoordinates).addTo(map);
-          if (pickupCoordinates && destinationCoordinates) {
-            const coordinates = `${pickupCoordinates.join(",")};${destinationCoordinates.join(",")}`;
-            const params = new URLSearchParams({
-              geometries: "geojson",
-              overview: "full",
-              steps: "false",
-              access_token: MAPBOX_TOKEN,
+          try {
+            setMapError("");
+            setRouteError("");
+            map.resize();
+            window.requestAnimationFrame(() => {
+              if (!disposed) map?.resize();
             });
-            void fetch(
-              `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}?${params}`,
-            )
-              .then(async (response) => {
-                if (!response.ok)
-                  throw new Error(
-                    "The route preview is temporarily unavailable. You can continue with your booking.",
-                  );
-                const body = (await response.json()) as {
-                  routes?: {
-                    distance: number;
-                    duration: number;
-                    geometry: { type: "LineString"; coordinates: [number, number][] };
-                  }[];
-                };
-                const route = body.routes?.[0];
-                if (!route || disposed || !map)
-                  throw new Error(
-                    "The route preview is temporarily unavailable. You can continue with your booking.",
-                  );
-                map.addSource("dc-route", { type: "geojson", data: route.geometry });
-                map.addLayer({
-                  id: "dc-route-line",
-                  type: "line",
-                  source: "dc-route",
-                  layout: { "line-join": "round", "line-cap": "round" },
-                  paint: { "line-color": "#d12b36", "line-width": 5, "line-opacity": 0.92 },
-                });
-                const bounds = route.geometry.coordinates.reduce(
-                  (bounds, point) => bounds.extend(point as [number, number]),
-                  new mapboxgl.LngLatBounds(
-                    route.geometry.coordinates[0] as [number, number],
-                    route.geometry.coordinates[0] as [number, number],
-                  ),
-                );
-                map.fitBounds(bounds, { padding: 58, maxZoom: 13, duration: 700 });
-                onRoute({
-                  distanceKm: route.distance / 1000,
-                  durationHours: route.duration / 3600,
-                });
-              })
-              .catch((cause: unknown) => {
-                if (!disposed) {
-                  setMapError(
-                    cause instanceof Error
-                      ? cause.message
-                      : "The route preview is temporarily unavailable. You can continue with your booking.",
-                  );
-                  onRoute(null);
-                }
+            if (pickupCoordinates) pickupMarker?.setLngLat(pickupCoordinates).addTo(map);
+            if (destinationCoordinates)
+              destinationMarker?.setLngLat(destinationCoordinates).addTo(map);
+            setMapReady(true);
+            if (pickupCoordinates && destinationCoordinates) {
+              const coordinates = `${pickupCoordinates.join(",")};${destinationCoordinates.join(",")}`;
+              const params = new URLSearchParams({
+                geometries: "geojson",
+                overview: "full",
+                steps: "false",
+                access_token: MAPBOX_TOKEN,
               });
-          } else {
-            map.flyTo({ center, zoom: 13, duration: 600 });
+              void fetch(
+                `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}?${params}`,
+              )
+                .then(async (response) => {
+                  if (!response.ok)
+                    throw new Error(
+                      "The route preview is temporarily unavailable. You can continue with your booking.",
+                    );
+                  const body = (await response.json()) as {
+                    routes?: {
+                      distance: number;
+                      duration: number;
+                      geometry: { type: "LineString"; coordinates: [number, number][] };
+                    }[];
+                  };
+                  const route = body.routes?.[0];
+                  if (!route || route.geometry.coordinates.length < 2 || disposed || !map)
+                    throw new Error(
+                      "The route preview is temporarily unavailable. You can continue with your booking.",
+                    );
+                  map.addSource("dc-route", { type: "geojson", data: route.geometry });
+                  map.addLayer({
+                    id: "dc-route-line",
+                    type: "line",
+                    source: "dc-route",
+                    layout: { "line-join": "round", "line-cap": "round" },
+                    paint: { "line-color": "#d12b36", "line-width": 5, "line-opacity": 0.92 },
+                  });
+                  const bounds = route.geometry.coordinates.reduce(
+                    (bounds, point) => bounds.extend(point),
+                    new mapboxgl.LngLatBounds(
+                      route.geometry.coordinates[0],
+                      route.geometry.coordinates[0],
+                    ),
+                  );
+                  map.fitBounds(bounds, { padding: 58, maxZoom: 13, duration: 700 });
+                  setMapReady(true);
+                  setRouteError("");
+                  onRoute({
+                    distanceKm: route.distance / 1000,
+                    durationHours: route.duration / 3600,
+                  });
+                })
+                .catch(() => {
+                  if (!disposed) {
+                    setRouteError(
+                      "The route preview is temporarily unavailable. You can continue with your booking.",
+                    );
+                    onRoute(null);
+                  }
+                });
+            } else {
+              map.flyTo({ center, zoom: 13, duration: 600 });
+              setMapReady(true);
+            }
+          } catch {
+            showMapError();
+            onRoute(null);
           }
         });
       })
@@ -136,6 +165,7 @@ export function BookingRouteMap({
 
     return () => {
       disposed = true;
+      resizeObserver?.disconnect();
       pickupMarker?.remove();
       destinationMarker?.remove();
       map?.remove();
@@ -158,7 +188,9 @@ export function BookingRouteMap({
 
   return (
     <div className="relative min-h-[300px] overflow-hidden border border-border bg-charcoal md:min-h-[360px]">
-      <div ref={containerRef} className="absolute inset-0" aria-label="Interactive route map" />
+      <div className="absolute inset-0">
+        <div ref={containerRef} className="h-full w-full" aria-label="Interactive route map" />
+      </div>
       {!pickup && !destination ? (
         <div className="pointer-events-none absolute inset-0 grid place-items-center bg-background/55 p-8 text-center">
           <p className="max-w-sm text-sm text-foreground/80">
@@ -175,11 +207,31 @@ export function BookingRouteMap({
         </div>
       ) : null}
       {mapError ? (
+        <div
+          role="status"
+          className="absolute inset-0 grid place-items-center bg-[radial-gradient(ellipse_at_center,_#242326_0%,_#131315_70%)] p-8 text-center"
+        >
+          <div>
+            <p className="eyebrow text-primary">Journey preview</p>
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
+              {mapError}
+            </p>
+            <button
+              type="button"
+              onClick={() => setRetryCount((count) => count + 1)}
+              className="mt-4 text-xs font-semibold uppercase tracking-widest text-primary underline underline-offset-4"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {routeError && !mapError ? (
         <p
           role="status"
           className="absolute bottom-3 left-3 max-w-[80%] bg-background/90 px-3 py-2 text-xs text-foreground"
         >
-          {mapError}{" "}
+          {routeError}{" "}
           <button
             type="button"
             onClick={() => setRetryCount((count) => count + 1)}
@@ -188,6 +240,13 @@ export function BookingRouteMap({
             Retry
           </button>
         </p>
+      ) : null}
+      {pickup && destination && !mapReady && !mapError && !coordinatesUnavailable ? (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-charcoal/70 p-8 text-center">
+          <p role="status" className="text-sm text-muted-foreground">
+            Loading your route preview…
+          </p>
+        </div>
       ) : null}
     </div>
   );
