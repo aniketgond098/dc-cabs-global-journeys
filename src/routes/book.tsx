@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { BookingRouteMap, type RouteEstimate } from "@/components/booking/BookingRouteMap";
+import { BookingProgress } from "@/components/booking/BookingProgress";
 import { JourneyLocation, LocationSearch } from "@/components/booking/LocationSearch";
 import { PaymentCheckout } from "@/components/booking/PaymentCheckout";
 import { VehicleCategoryCard, type Category } from "@/components/booking/VehicleCategoryCard";
@@ -24,7 +25,6 @@ type Booking = {
   customer: { fullName: string; email: string; phone: string };
 };
 
-const steps = ["Journey", "Vehicle", "Fare", "Details", "Review", "Payment"] as const;
 const packages: Record<TripType, { value: string; label: string }[]> = {
   local: [
     { value: "4hr_40km", label: "4 hours · 40 km" },
@@ -49,24 +49,6 @@ function money(value: unknown, currency: string) {
 
 function titleForComponent(value: string) {
   return value.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase());
-}
-
-function StepHeader({ current }: { current: number }) {
-  return (
-    <ol aria-label="Booking progress" className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-      {steps.map((step, index) => (
-        <li key={step} aria-current={current === index + 1 ? "step" : undefined}>
-          <div className={`h-px ${current >= index + 1 ? "bg-primary" : "bg-border"}`} />
-          <p
-            className={`mt-3 text-[10px] font-semibold uppercase tracking-[0.15em] sm:text-xs ${current >= index + 1 ? "text-foreground" : "text-muted-foreground"}`}
-          >
-            <span className="mr-2 text-primary">0{index + 1}</span>
-            {step}
-          </p>
-        </li>
-      ))}
-    </ol>
-  );
 }
 
 function JourneyRow({
@@ -335,7 +317,7 @@ function BookingPage() {
         </div>
 
         <div className="mt-12 border-y border-border py-6">
-          <StepHeader current={step} />
+          <BookingProgress step={step - 1} onStep={(nextStep) => setStep(nextStep + 1)} />
         </div>
 
         {message ? (

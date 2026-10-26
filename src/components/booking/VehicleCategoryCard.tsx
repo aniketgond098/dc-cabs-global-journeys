@@ -1,3 +1,4 @@
+import { ArrowUpRight, Briefcase, Check, Users } from "lucide-react";
 import sedan from "@/assets/fleet-sedan.jpg";
 import suv from "@/assets/fleet-suv.jpg";
 import luxury from "@/assets/fleet-luxury.jpg";
@@ -33,9 +34,9 @@ export function VehicleCategoryCard({
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`group overflow-hidden border text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${selected ? "border-primary bg-surface" : "border-border bg-charcoal hover:border-foreground/40"}`}
+      className={`group flex h-full w-full flex-col overflow-hidden border text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${selected ? "border-primary bg-surface" : "border-border bg-charcoal hover:border-foreground/40"}`}
     >
-      <div className="relative aspect-[16/9] overflow-hidden">
+      <div className="relative aspect-[16/9] w-full overflow-hidden">
         <img
           src={categoryImage(category.name)}
           alt=""
@@ -46,16 +47,33 @@ export function VehicleCategoryCard({
         <span className="eyebrow absolute bottom-4 left-4 text-foreground/90">
           Chauffeur category
         </span>
+        <span
+          className="absolute right-3 top-3 grid size-8 place-items-center border border-hairline bg-background"
+          aria-hidden="true"
+        >
+          {selected ? (
+            <Check className="size-4 text-primary-tint" />
+          ) : (
+            <ArrowUpRight className="size-4" />
+          )}
+        </span>
       </div>
-      <div className="p-5">
+      <div className="flex flex-1 flex-col p-5">
         <h3 className="font-display text-2xl font-bold uppercase">{category.name}</h3>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Up to {category.passenger_capacity} passengers
-          {category.luggage_capacity !== null ? ` · ${category.luggage_capacity} luggage` : ""}
-        </p>
+        <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <Users className="size-4" /> Up to {category.passenger_capacity} passengers
+          </span>
+          {category.luggage_capacity !== null && (
+            <span className="inline-flex items-center gap-1">
+              <Briefcase className="size-4" /> {category.luggage_capacity} luggage
+            </span>
+          )}
+        </div>
         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
           A dedicated chauffeur-driven category selected from the DC Cabs fleet catalog.
         </p>
+        <span className="mt-auto pt-5 text-xs">{selected ? "Selected" : "Select category"}</span>
       </div>
     </button>
   );
