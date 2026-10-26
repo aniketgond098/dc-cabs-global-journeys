@@ -18,36 +18,35 @@ export function BookingRouteMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const [mapError, setMapError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
+  const coordinatesUnavailable = Boolean(
+    (pickup && !pickup.coordinates) || (destination && !destination.coordinates),
+  );
 
   useEffect(() => {
+    onRoute(null);
+    setMapError("");
     if (!MAPBOX_TOKEN || !containerRef.current) return;
     let disposed = false;
     let map: import("mapbox-gl").Map | null = null;
     let pickupMarker: import("mapbox-gl").Marker | null = null;
     let destinationMarker: import("mapbox-gl").Marker | null = null;
-    onRoute(null);
-    setMapError("");
-
     const pickupCoordinates = pickup?.coordinates ?? null;
     const destinationCoordinates = destination?.coordinates ?? null;
-    if ((pickup && !pickupCoordinates) || (destination && !destinationCoordinates)) {
-      setMapError(
-        "Route preview unavailable because a selected catalog location has no coordinates. Booking can continue.",
-      );
-      return;
-    }
+    if ((pickup && !pickupCoordinates) || (destination && !destinationCoordinates)) return;
+    if (!pickupCoordinates && !destinationCoordinates) return;
 
     void import("mapbox-gl")
       .then((module) => {
         if (disposed || !containerRef.current) return;
         const mapboxgl = module.default;
         mapboxgl.accessToken = MAPBOX_TOKEN;
-        const center = pickupCoordinates ?? [72.8777, 19.076];
+        const center = pickupCoordinates ?? destinationCoordinates;
+        if (!center) return;
         map = new mapboxgl.Map({
           container: containerRef.current,
           style: "mapbox://styles/mapbox/dark-v11",
           center,
-          zoom: pickupCoordinates ? 11 : 9,
+          zoom: 11,
           attributionControl: true,
         });
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
@@ -55,7 +54,7 @@ export function BookingRouteMap({
         destinationMarker = new mapboxgl.Marker({ color: "#f2eee8" });
         map.on("error", () =>
           setMapError(
-            "Route preview unavailable. Check Mapbox configuration and network access; booking can continue without it.",
+            "The route preview is temporarily unavailable. You can continue with your booking.",
           ),
         );
         map.once("load", () => {
@@ -78,7 +77,7 @@ export function BookingRouteMap({
               .then(async (response) => {
                 if (!response.ok)
                   throw new Error(
-                    "Route preview unavailable. You can continue booking without the estimate.",
+                    "The route preview is temporarily unavailable. You can continue with your booking.",
                   );
                 const body = (await response.json()) as {
                   routes?: {
@@ -90,7 +89,7 @@ export function BookingRouteMap({
                 const route = body.routes?.[0];
                 if (!route || disposed || !map)
                   throw new Error(
-                    "Route preview unavailable. You can continue booking without the estimate.",
+                    "The route preview is temporarily unavailable. You can continue with your booking.",
                   );
                 map.addSource("dc-route", { type: "geojson", data: route.geometry });
                 map.addLayer({
@@ -118,19 +117,21 @@ export function BookingRouteMap({
                   setMapError(
                     cause instanceof Error
                       ? cause.message
-                      : "Route preview unavailable. You can continue booking without the estimate.",
+                      : "The route preview is temporarily unavailable. You can continue with your booking.",
                   );
                   onRoute(null);
                 }
               });
-          } else if (pickupCoordinates) {
-            map.flyTo({ center: pickupCoordinates, zoom: 13, duration: 600 });
+          } else {
+            map.flyTo({ center, zoom: 13, duration: 600 });
           }
         });
       })
       .catch(() => {
         if (!disposed)
-          setMapError("Route preview unavailable. You can continue booking without the estimate.");
+          setMapError(
+            "The route preview is temporarily unavailable. You can continue with your booking.",
+          );
       });
 
     return () => {
@@ -147,8 +148,8 @@ export function BookingRouteMap({
         <div>
           <p className="eyebrow text-primary">Journey preview</p>
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            Route preview unavailable because VITE_MAPBOX_ACCESS_TOKEN is not configured. Booking
-            can continue with active catalog locations.
+            Your route preview is unavailable right now. You can still choose your locations and
+            continue to your fare.
           </p>
         </div>
       </div>
@@ -158,10 +159,18 @@ export function BookingRouteMap({
   return (
     <div className="relative min-h-[300px] overflow-hidden border border-border bg-charcoal md:min-h-[360px]">
       <div ref={containerRef} className="absolute inset-0" aria-label="Interactive route map" />
-      {!pickup ? (
+      {!pickup && !destination ? (
         <div className="pointer-events-none absolute inset-0 grid place-items-center bg-background/55 p-8 text-center">
           <p className="max-w-sm text-sm text-foreground/80">
             Select your pickup and destination to preview your journey.
+          </p>
+        </div>
+      ) : null}
+      {coordinatesUnavailable ? (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-background/80 p-8 text-center">
+          <p className="max-w-sm text-sm leading-relaxed text-foreground/80">
+            A route preview is not available for this journey yet. You can continue to get your
+            fare.
           </p>
         </div>
       ) : null}

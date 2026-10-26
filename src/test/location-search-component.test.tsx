@@ -23,8 +23,9 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-async function loadSearch() {
-  vi.stubEnv("VITE_MAPBOX_ACCESS_TOKEN", "pk.test-token");
+async function loadSearch(mapboxToken: string | null = "pk.test-token") {
+  if (mapboxToken) vi.stubEnv("VITE_MAPBOX_ACCESS_TOKEN", mapboxToken);
+  else vi.stubEnv("VITE_MAPBOX_ACCESS_TOKEN", "");
   vi.resetModules();
   const { LocationSearch } = await import("@/components/booking/LocationSearch");
   return LocationSearch;
@@ -127,12 +128,79 @@ describe("LocationSearch catalog validation", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const onChange = await startSearch();
-    await screen.findByText(/Map location search is unavailable/i);
+    await screen.findByText(/Additional place suggestions are temporarily unavailable/i);
     fireEvent.click(await screen.findByRole("option", { name: /Mumbai Airport/ }));
 
     expect(onChange.mock.lastCall?.[0]).toEqual(
       expect.objectContaining({ id: "location-1", bookable: true, coordinates: null }),
     );
+    expect(screen.getByRole("combobox", { name: "From" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("selects catalog locations when the public Mapbox token is unavailable", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/v1/catalog/locations"))
+        return jsonResponse({ data: [{ ...catalogLocation, latitude: null, longitude: null }] });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const LocationSearch = await loadSearch(null);
+    const onChange = vi.fn();
+    render(<LocationSearch label="From" value={null} onChange={onChange} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "From" }), {
+      target: { value: "Mumbai" },
+    });
+    fireEvent.click(await screen.findByRole("option", { name: /Mumbai Airport/ }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "location-1", coordinates: null, bookable: true }),
+    );
+    expect(screen.getByRole("combobox", { name: "From" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let a stale Mapbox retrieve overwrite a newer catalog selection", async () => {
+    let finishRetrieve: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/v1/catalog/locations"))
+        return Promise.resolve(jsonResponse({ data: [catalogLocation] }));
+      if (url.includes("/suggest"))
+        return Promise.resolve(jsonResponse({ suggestions: [suggestion] }));
+      if (url.includes("/retrieve/"))
+        return new Promise<Response>((resolve) => {
+          finishRetrieve = resolve;
+        });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const onChange = await startSearch();
+    const options = await screen.findAllByRole("option");
+    fireEvent.click(options[1]!);
+    await vi.waitFor(() => expect(finishRetrieve).toBeDefined());
+    fireEvent.click(screen.getByRole("option", { name: /DC Cabs location/ }));
+    finishRetrieve?.(
+      jsonResponse({ features: [{ geometry: { coordinates: [72.8656, 19.0896] } }] }),
+    );
+
+    await vi.waitFor(() =>
+      expect(onChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: "location-1", bookable: true }),
+      ),
+    );
+    expect(onChange).not.toHaveBeenLastCalledWith(expect.objectContaining({ bookable: false }));
+    expect(
+      fetchMock.mock.calls.filter(([input]) => String(input).includes("/api/v1/catalog/locations")),
+    ).toHaveLength(1);
     expect(screen.getByRole("combobox", { name: "From" })).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -153,9 +221,7 @@ describe("LocationSearch catalog validation", () => {
     const onChange = await startSearch();
     fireEvent.click(await screen.findByRole("option", { name: /Mumbai Airport/ }));
 
-    expect(
-      await screen.findByText(/outside the current online booking catalog/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/not available for online booking yet/i)).toBeInTheDocument();
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ bookable: false }));
     expect(onChange.mock.lastCall?.[0]).not.toHaveProperty("id");
   });
@@ -185,9 +251,7 @@ describe("LocationSearch catalog validation", () => {
       ).toBeInTheDocument();
       expect(onChange).toHaveBeenCalledTimes(1);
       expect(onChange).toHaveBeenCalledWith(null);
-      expect(
-        screen.queryByText(/outside the current online booking catalog/i),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/not available for online booking yet/i)).not.toBeInTheDocument();
     },
   );
 });

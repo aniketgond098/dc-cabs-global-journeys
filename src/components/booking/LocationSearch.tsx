@@ -120,7 +120,7 @@ export function LocationSearch({
         })
         .catch(() => {
           if (active && !controller.signal.aborted) {
-            setMapboxError("Map location search is unavailable.");
+            setMapboxError("Additional place suggestions are temporarily unavailable.");
             setMapboxSearching(false);
           }
         });
@@ -202,7 +202,7 @@ export function LocationSearch({
       sessionToken.current = crypto.randomUUID();
       if (!catalogMatch)
         setSelectionError(
-          "This place is outside the current online booking catalog. Contact our team to arrange it.",
+          "This location is not available for online booking yet. Choose a listed DC Cabs location or contact our team.",
         );
     } catch (cause) {
       if (selectionRequest !== selectionRequestRef.current) return;
@@ -254,6 +254,11 @@ export function LocationSearch({
           role="listbox"
           className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto border border-border bg-charcoal shadow-2xl"
         >
+          {catalogLocations.length ? (
+            <p className="border-b border-border px-4 py-2 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-primary-tint">
+              DC Cabs locations
+            </p>
+          ) : null}
           {catalogLocations.map((entry) => (
             <button
               type="button"
@@ -267,6 +272,11 @@ export function LocationSearch({
               <span className="mt-1 block text-xs text-primary-tint">DC Cabs location</span>
             </button>
           ))}
+          {suggestions.length ? (
+            <p className="border-b border-border px-4 py-2 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+              Other places · availability checked before booking
+            </p>
+          ) : null}
           {suggestions.map((suggestion) => (
             <button
               type="button"
@@ -281,7 +291,10 @@ export function LocationSearch({
               <span className="mt-1 block text-xs text-muted-foreground">
                 {suggestion.full_address ??
                   suggestion.place_formatted ??
-                  "Mapbox result · verify bookability"}
+                  "Additional place suggestion"}
+              </span>
+              <span className="mt-1 block text-[0.65rem] text-muted-foreground">
+                We’ll confirm whether this place is available for online booking.
               </span>
             </button>
           ))}
@@ -298,9 +311,7 @@ export function LocationSearch({
       ) : null}
       {value ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          {value.bookable
-            ? "Available for online booking"
-            : "Map preview only · not in the booking catalog"}
+          {value.bookable ? "Available for online booking" : "Not available for online booking"}
         </p>
       ) : null}
       {catalogError ? (
@@ -340,7 +351,8 @@ export function LocationSearch({
       ) : null}
       {!MAPBOX_TOKEN ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          Mapbox search is unavailable until VITE_MAPBOX_ACCESS_TOKEN is configured.
+          Additional place suggestions are unavailable right now. DC Cabs locations remain
+          searchable.
         </p>
       ) : null}
     </div>

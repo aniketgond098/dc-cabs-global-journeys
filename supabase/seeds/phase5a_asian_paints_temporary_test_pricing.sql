@@ -48,21 +48,23 @@ on conflict (id) do update set
   is_active = excluded.is_active,
   updated_at = now();
 
-insert into public.locations (id, city_id, kind, name, is_active)
+-- Coordinates identify the named feature locations. Source: OpenStreetMap contributors
+-- (ODbL), objects listed in the production data migration 20261026000100.
+insert into public.locations (id, city_id, kind, name, latitude, longitude, is_active)
 values
-  ('a0000000-0000-4000-8000-000000000101', 'a0000000-0000-4000-8000-000000000003', 'airport', 'Mumbai Airport Terminal 1', true),
-  ('a0000000-0000-4000-8000-000000000102', 'a0000000-0000-4000-8000-000000000003', 'airport', 'Mumbai Airport Terminal 2', true),
-  ('a0000000-0000-4000-8000-000000000103', 'a0000000-0000-4000-8000-000000000003', 'railway_station', 'Mumbai Central', true),
-  ('a0000000-0000-4000-8000-000000000104', 'a0000000-0000-4000-8000-000000000003', 'railway_station', 'Bandra Terminus', true),
-  ('a0000000-0000-4000-8000-000000000105', 'a0000000-0000-4000-8000-000000000003', 'business_district', 'Bandra Kurla Complex (BKC)', true),
-  ('a0000000-0000-4000-8000-000000000106', 'a0000000-0000-4000-8000-000000000003', 'landmark', 'Colaba', true)
+  ('a0000000-0000-4000-8000-000000000101', 'a0000000-0000-4000-8000-000000000003', 'airport', 'Mumbai Airport Terminal 1', 19.092617, 72.855744, true),
+  ('a0000000-0000-4000-8000-000000000102', 'a0000000-0000-4000-8000-000000000003', 'airport', 'Mumbai Airport Terminal 2', 19.097777, 72.874347, true),
+  ('a0000000-0000-4000-8000-000000000103', 'a0000000-0000-4000-8000-000000000003', 'railway_station', 'Mumbai Central', 18.969586, 72.819315, true),
+  ('a0000000-0000-4000-8000-000000000104', 'a0000000-0000-4000-8000-000000000003', 'railway_station', 'Bandra Terminus', 19.064672, 72.841661, true),
+  ('a0000000-0000-4000-8000-000000000105', 'a0000000-0000-4000-8000-000000000003', 'business_district', 'Bandra Kurla Complex (BKC)', 19.067115, 72.865725, true),
+  ('a0000000-0000-4000-8000-000000000106', 'a0000000-0000-4000-8000-000000000003', 'landmark', 'Colaba', 18.915091, 72.825969, true)
 on conflict (id) do update set
   city_id = excluded.city_id,
   kind = excluded.kind,
   name = excluded.name,
   address = null,
-  latitude = null,
-  longitude = null,
+  latitude = excluded.latitude,
+  longitude = excluded.longitude,
   is_active = excluded.is_active,
   updated_at = now();
 
