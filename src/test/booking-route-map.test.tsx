@@ -131,7 +131,7 @@ describe("BookingRouteMap optional coordinates", () => {
           cityId: "city-1",
           label: "Mumbai Airport",
           context: "DC Cabs location",
-          coordinates: [72.86, 19.09],
+          coordinates: [72.855744, 19.092617],
           bookable: true,
         }}
         destination={{
@@ -139,7 +139,7 @@ describe("BookingRouteMap optional coordinates", () => {
           cityId: "city-1",
           label: "Bandra",
           context: "DC Cabs location",
-          coordinates: [72.88, 19.1],
+          coordinates: [72.865725, 19.067115],
           bookable: true,
         }}
         onRoute={onRoute}
@@ -152,9 +152,15 @@ describe("BookingRouteMap optional coordinates", () => {
         durationHours: 1.0416666666666667,
       }),
     );
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
-      "/directions/v5/mapbox/driving/72.86,19.09;72.88,19.1?",
+    const directionsUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(directionsUrl.hostname).toBe("api.mapbox.com");
+    expect(directionsUrl.pathname).toBe(
+      "/directions/v5/mapbox/driving/72.855744,19.092617;72.865725,19.067115",
     );
+    expect(directionsUrl.searchParams.get("geometries")).toBe("geojson");
+    expect(directionsUrl.searchParams.get("overview")).toBe("full");
+    expect(directionsUrl.searchParams.get("steps")).toBe("false");
+    expect(directionsUrl.searchParams.get("access_token")).toBe("pk.test-token");
     expect(mocks.map.addSource).toHaveBeenCalledWith(
       "dc-route",
       expect.objectContaining({ type: "geojson" }),

@@ -18,8 +18,8 @@ export type JourneyLocation = {
 type MapboxSuggestion = {
   mapbox_id: string;
   name: string;
-  full_address?: string;
   place_formatted?: string;
+  coordinates: [number, number];
 };
 
 const MAPBOX_TOKEN = import.meta.env["VITE_MAPBOX_ACCESS_TOKEN"];
@@ -44,7 +44,6 @@ export function LocationSearch({
   const [mapboxError, setMapboxError] = useState("");
   const [selectionError, setSelectionError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
-  const sessionToken = useRef("");
   const abortRef = useRef<AbortController | null>(null);
   const selectionRequestRef = useRef(0);
 
@@ -98,22 +97,56 @@ export function LocationSearch({
         setMapboxSearching(false);
         return;
       }
-      sessionToken.current ||= crypto.randomUUID();
       const mapboxParams = new URLSearchParams({
-        q: query.trim(),
+        q: query.trim().replaceAll(";", " "),
         language: "en",
+        country: "in",
+        worldview: "in",
         limit: "6",
-        session_token: sessionToken.current,
+        autocomplete: "true",
         access_token: MAPBOX_TOKEN,
       });
-      void fetch(`https://api.mapbox.com/search/searchbox/v1/suggest?${mapboxParams}`, {
+      void fetch(`https://api.mapbox.com/search/geocode/v6/forward?${mapboxParams}`, {
         signal: controller.signal,
       })
         .then(async (response) => {
           if (!response.ok) throw new Error("Location search is temporarily unavailable.");
-          const body = (await response.json()) as { suggestions?: MapboxSuggestion[] };
+          const body = (await response.json()) as {
+            features?: {
+              properties?: {
+                mapbox_id?: string;
+                name?: string;
+                place_formatted?: string;
+              };
+              geometry?: { coordinates?: number[] };
+            }[];
+          };
           if (active) {
-            setSuggestions(body.suggestions ?? []);
+            setSuggestions(
+              (body.features ?? []).flatMap((feature) => {
+                const mapboxId = feature.properties?.mapbox_id;
+                const name = feature.properties?.name;
+                const coordinates = feature.geometry?.coordinates;
+                if (
+                  typeof mapboxId !== "string" ||
+                  typeof name !== "string" ||
+                  !coordinates ||
+                  coordinates.length !== 2 ||
+                  !coordinates.every(Number.isFinite)
+                )
+                  return [];
+                return [
+                  {
+                    mapbox_id: mapboxId,
+                    name,
+                    ...(feature.properties?.place_formatted
+                      ? { place_formatted: feature.properties.place_formatted }
+                      : {}),
+                    coordinates: [coordinates[0]!, coordinates[1]!] as [number, number],
+                  },
+                ];
+              }),
+            );
             setMapboxError("");
             setMapboxSearching(false);
           }
@@ -166,24 +199,12 @@ export function LocationSearch({
     setMapboxError("");
     setSelectionError("");
     try {
-      const params = new URLSearchParams({
-        session_token: sessionToken.current,
-        access_token: MAPBOX_TOKEN,
-      });
-      const response = await fetch(
-        `https://api.mapbox.com/search/searchbox/v1/retrieve/${encodeURIComponent(suggestion.mapbox_id)}?${params}`,
-      );
-      if (!response.ok) throw new Error("That location could not be loaded. Try another result.");
-      const body = (await response.json()) as {
-        features?: Array<{ geometry?: { coordinates?: [number, number] } }>;
-      };
-      const coordinates = body.features?.[0]?.geometry?.coordinates;
-      if (!coordinates) throw new Error("That location did not include map coordinates.");
+      const coordinates = suggestion.coordinates;
       if (selectionRequest !== selectionRequestRef.current) return;
       const catalogMatch =
         (await findCatalogMatch(suggestion.name, coordinates)) ??
-        (suggestion.full_address
-          ? await findCatalogMatch(suggestion.full_address, coordinates)
+        (suggestion.place_formatted
+          ? await findCatalogMatch(suggestion.place_formatted, coordinates)
           : null);
       if (selectionRequest !== selectionRequestRef.current) return;
       const chosen: JourneyLocation = {
@@ -191,7 +212,7 @@ export function LocationSearch({
         label: catalogMatch?.name ?? suggestion.name,
         context: catalogMatch
           ? "Matched to an active DC Cabs location"
-          : (suggestion.full_address ?? suggestion.place_formatted ?? "Mapbox location"),
+          : (suggestion.place_formatted ?? "Mapbox location"),
         coordinates,
         bookable: Boolean(catalogMatch),
       };
@@ -199,7 +220,6 @@ export function LocationSearch({
       onChange(chosen);
       setOpen(false);
       setCatalogError("");
-      sessionToken.current = crypto.randomUUID();
       if (!catalogMatch)
         setSelectionError(
           "This location is not available for online booking yet. Choose a listed DC Cabs location or contact our team.",
@@ -289,9 +309,7 @@ export function LocationSearch({
             >
               <span className="block text-sm font-semibold">{suggestion.name}</span>
               <span className="mt-1 block text-xs text-muted-foreground">
-                {suggestion.full_address ??
-                  suggestion.place_formatted ??
-                  "Additional place suggestion"}
+                {suggestion.place_formatted ?? "Additional place suggestion"}
               </span>
               <span className="mt-1 block text-[0.65rem] text-muted-foreground">
                 We’ll confirm whether this place is available for online booking.
