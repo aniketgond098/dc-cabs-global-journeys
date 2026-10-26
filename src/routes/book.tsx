@@ -5,6 +5,7 @@ import { BookingProgress } from "@/components/booking/BookingProgress";
 import { JourneyLocation, LocationSearch } from "@/components/booking/LocationSearch";
 import { PaymentCheckout } from "@/components/booking/PaymentCheckout";
 import { VehicleCategoryCard, type Category } from "@/components/booking/VehicleCategoryCard";
+import { canContinueJourney } from "@/lib/booking-journey";
 
 type TripType = "local" | "outstation" | "airport_transfer";
 type Quote = {
@@ -200,7 +201,7 @@ function BookingPage() {
   }
 
   async function requestQuote() {
-    if (!pickup?.id || !destination?.id || !pickupAt || !vehicleId || !routeEstimate) return;
+    if (!pickup?.id || !destination?.id || !pickupAt || !vehicleId) return;
     setBusy(true);
     setMessage("");
     setPricingUnavailable(false);
@@ -218,8 +219,12 @@ function BookingPage() {
           vehicleCategoryId: vehicleId,
           passengerCount: passengers,
           tripDays,
-          estimatedDistanceKm: Number(routeEstimate.distanceKm.toFixed(2)),
-          estimatedDurationHours: Number(routeEstimate.durationHours.toFixed(2)),
+          ...(routeEstimate
+            ? {
+                estimatedDistanceKm: Number(routeEstimate.distanceKm.toFixed(2)),
+                estimatedDurationHours: Number(routeEstimate.durationHours.toFixed(2)),
+              }
+            : {}),
         }),
       });
       const result = (await response.json()) as
@@ -283,16 +288,12 @@ function BookingPage() {
     }
   }
 
-  const canContinueJourney = Boolean(
-    pickup?.id &&
-    pickup.bookable &&
-    destination?.id &&
-    destination.bookable &&
-    pickupAt &&
-    Date.parse(pickupAt) > Date.now() &&
-    routeEstimate &&
-    !categoriesError,
-  );
+  const journeyReady = canContinueJourney({
+    pickup,
+    destination,
+    pickupAt,
+    categoriesError,
+  });
   const canContinueVehicle = Boolean(
     selectedCategory && passengers <= selectedCategory.passenger_capacity,
   );
@@ -492,9 +493,9 @@ function BookingPage() {
                 ) : null}
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Route distance and travel time are calculated from the driving preview and sent as
-                inputs to the server quote. The server applies the configured pricing rule and
-                returns the fare.
+                Mapbox route distance and travel time are optional estimates. When available, they
+                are sent to the server quote; the server applies the configured pricing rule and
+                returns the fare. No distance or duration is invented when Mapbox is unavailable.
               </p>
             </div>
 
@@ -527,7 +528,7 @@ function BookingPage() {
               ) : null}
               <button
                 type="button"
-                disabled={!canContinueJourney}
+                disabled={!journeyReady}
                 onClick={() => {
                   setMessage("");
                   setStep(2);
@@ -700,7 +701,7 @@ function BookingPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={busy || !routeEstimate}
+                  disabled={busy}
                   onClick={() => void requestQuote()}
                   className="bg-primary px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground disabled:opacity-40"
                 >
