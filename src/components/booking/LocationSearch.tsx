@@ -11,7 +11,7 @@ export type JourneyLocation = {
   cityId?: string;
   label: string;
   context: string;
-  coordinates: [number, number];
+  coordinates: [number, number] | null;
   bookable: boolean;
 };
 
@@ -46,13 +46,23 @@ export function LocationSearch({
   const [retryCount, setRetryCount] = useState(0);
   const sessionToken = useRef("");
   const abortRef = useRef<AbortController | null>(null);
+  const selectionRequestRef = useRef(0);
 
   useEffect(() => {
     setQuery(value?.label ?? "");
   }, [value?.id, value?.label]);
 
+  useEffect(
+    () => () => {
+      selectionRequestRef.current += 1;
+      abortRef.current?.abort();
+    },
+    [],
+  );
+
   useEffect(() => {
-    if (query.trim().length < 2) {
+    if (!open || query.trim().length < 2) {
+      abortRef.current?.abort();
       setCatalogLocations([]);
       setSuggestions([]);
       setCatalogSearching(false);
@@ -120,26 +130,30 @@ export function LocationSearch({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [query, retryCount]);
+  }, [query, retryCount, open]);
 
   function selectCatalog(entry: CatalogLocation) {
-    if (entry.latitude === null || entry.longitude === null) {
-      setSelectionError(
-        "This DC Cabs location needs map coordinates before it can be booked online.",
-      );
-      return;
-    }
+    selectionRequestRef.current += 1;
+    abortRef.current?.abort();
     const location: JourneyLocation = {
       id: entry.id,
       cityId: entry.city_id,
       label: entry.name,
       context: entry.address ?? "DC Cabs bookable location",
-      coordinates: [Number(entry.longitude), Number(entry.latitude)],
+      coordinates:
+        entry.longitude !== null && entry.latitude !== null
+          ? [Number(entry.longitude), Number(entry.latitude)]
+          : null,
       bookable: true,
     };
     setQuery(location.label);
     onChange(location);
     setOpen(false);
+    setBusy(false);
+    setCatalogLocations([]);
+    setSuggestions([]);
+    setCatalogSearching(false);
+    setMapboxSearching(false);
     setCatalogError("");
     setMapboxError("");
     setSelectionError("");
@@ -147,6 +161,7 @@ export function LocationSearch({
 
   async function selectMapbox(suggestion: MapboxSuggestion) {
     if (!MAPBOX_TOKEN) return;
+    const selectionRequest = ++selectionRequestRef.current;
     setBusy(true);
     setMapboxError("");
     setSelectionError("");
@@ -164,11 +179,13 @@ export function LocationSearch({
       };
       const coordinates = body.features?.[0]?.geometry?.coordinates;
       if (!coordinates) throw new Error("That location did not include map coordinates.");
+      if (selectionRequest !== selectionRequestRef.current) return;
       const catalogMatch =
         (await findCatalogMatch(suggestion.name, coordinates)) ??
         (suggestion.full_address
           ? await findCatalogMatch(suggestion.full_address, coordinates)
           : null);
+      if (selectionRequest !== selectionRequestRef.current) return;
       const chosen: JourneyLocation = {
         ...(catalogMatch ? { id: catalogMatch.id, cityId: catalogMatch.city_id } : {}),
         label: catalogMatch?.name ?? suggestion.name,
@@ -188,6 +205,7 @@ export function LocationSearch({
           "This place is outside the current online booking catalog. Contact our team to arrange it.",
         );
     } catch (cause) {
+      if (selectionRequest !== selectionRequestRef.current) return;
       if (cause instanceof CatalogLookupError) setCatalogError(cause.message);
       else
         setMapboxError(
@@ -196,7 +214,7 @@ export function LocationSearch({
             : "Location search is unavailable. Please try again.",
         );
     } finally {
-      setBusy(false);
+      if (selectionRequest === selectionRequestRef.current) setBusy(false);
     }
   }
 
@@ -217,6 +235,8 @@ export function LocationSearch({
         aria-autocomplete="list"
         onFocus={() => setOpen(true)}
         onChange={(event) => {
+          selectionRequestRef.current += 1;
+          setBusy(false);
           setQuery(event.target.value);
           onChange(null);
           setCatalogError("");

@@ -26,18 +26,28 @@ export function BookingRouteMap({
     let pickupMarker: import("mapbox-gl").Marker | null = null;
     let destinationMarker: import("mapbox-gl").Marker | null = null;
     onRoute(null);
+    setMapError("");
+
+    const pickupCoordinates = pickup?.coordinates ?? null;
+    const destinationCoordinates = destination?.coordinates ?? null;
+    if ((pickup && !pickupCoordinates) || (destination && !destinationCoordinates)) {
+      setMapError(
+        "Route preview unavailable because a selected catalog location has no coordinates. Booking can continue.",
+      );
+      return;
+    }
 
     void import("mapbox-gl")
       .then((module) => {
         if (disposed || !containerRef.current) return;
         const mapboxgl = module.default;
         mapboxgl.accessToken = MAPBOX_TOKEN;
-        const center = pickup?.coordinates ?? [72.8777, 19.076];
+        const center = pickupCoordinates ?? [72.8777, 19.076];
         map = new mapboxgl.Map({
           container: containerRef.current,
           style: "mapbox://styles/mapbox/dark-v11",
           center,
-          zoom: pickup ? 11 : 9,
+          zoom: pickupCoordinates ? 11 : 9,
           attributionControl: true,
         });
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
@@ -51,10 +61,11 @@ export function BookingRouteMap({
         map.once("load", () => {
           if (disposed || !map) return;
           setMapError("");
-          if (pickup) pickupMarker?.setLngLat(pickup.coordinates).addTo(map);
-          if (destination) destinationMarker?.setLngLat(destination.coordinates).addTo(map);
-          if (pickup && destination) {
-            const coordinates = `${pickup.coordinates.join(",")};${destination.coordinates.join(",")}`;
+          if (pickupCoordinates) pickupMarker?.setLngLat(pickupCoordinates).addTo(map);
+          if (destinationCoordinates)
+            destinationMarker?.setLngLat(destinationCoordinates).addTo(map);
+          if (pickupCoordinates && destinationCoordinates) {
+            const coordinates = `${pickupCoordinates.join(",")};${destinationCoordinates.join(",")}`;
             const params = new URLSearchParams({
               geometries: "geojson",
               overview: "full",
@@ -112,8 +123,8 @@ export function BookingRouteMap({
                   onRoute(null);
                 }
               });
-          } else if (pickup) {
-            map.flyTo({ center: pickup.coordinates, zoom: 13, duration: 600 });
+          } else if (pickupCoordinates) {
+            map.flyTo({ center: pickupCoordinates, zoom: 13, duration: 600 });
           }
         });
       })

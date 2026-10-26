@@ -65,6 +65,78 @@ describe("LocationSearch catalog validation", () => {
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ id: "location-1", cityId: "city-1", bookable: true }),
     );
+    expect(onChange.mock.lastCall?.[0].coordinates).toEqual([72.8656, 19.0896]);
+    expect(screen.getByRole("combobox", { name: "From" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("immediately selects a catalog location without coordinates while Mapbox is pending", async () => {
+    const locationWithoutCoordinates = {
+      ...catalogLocation,
+      latitude: null,
+      longitude: null,
+      name: "Mumbai Airport Terminal 2",
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/v1/catalog/locations"))
+        return Promise.resolve(jsonResponse({ data: [locationWithoutCoordinates] }));
+      if (url.includes("/suggest")) return new Promise<Response>(() => {});
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const onChange = await startSearch();
+    fireEvent.click(await screen.findByRole("option", { name: /Mumbai Airport Terminal 2/ }));
+
+    expect(onChange.mock.lastCall?.[0]).toEqual(
+      expect.objectContaining({
+        id: "location-1",
+        cityId: "city-1",
+        label: "Mumbai Airport Terminal 2",
+        coordinates: null,
+        bookable: true,
+      }),
+    );
+    expect(screen.getByRole("combobox", { name: "From" })).toHaveValue("Mumbai Airport Terminal 2");
+    expect(screen.getByRole("combobox", { name: "From" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/retrieve/"))).toBe(
+      false,
+    );
+  });
+
+  it("keeps a selected catalog location when the Mapbox search request fails", async () => {
+    const locationWithoutCoordinates = {
+      ...catalogLocation,
+      latitude: null,
+      longitude: null,
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/v1/catalog/locations"))
+        return jsonResponse({ data: [locationWithoutCoordinates] });
+      if (url.includes("/suggest")) return jsonResponse({}, 401);
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const onChange = await startSearch();
+    await screen.findByText(/Map location search is unavailable/i);
+    fireEvent.click(await screen.findByRole("option", { name: /Mumbai Airport/ }));
+
+    expect(onChange.mock.lastCall?.[0]).toEqual(
+      expect.objectContaining({ id: "location-1", bookable: true, coordinates: null }),
+    );
+    expect(screen.getByRole("combobox", { name: "From" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
   it("keeps a successful catalog lookup with no match unsupported", async () => {
