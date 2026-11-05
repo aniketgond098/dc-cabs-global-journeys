@@ -25,16 +25,71 @@ insert into public.pricing_rules (
   id, vehicle_category_id, trip_type, package_tier, origin_city_id, origin_location_id,
   destination_city_id, destination_location_id, base_fare, included_hours, included_km,
   extra_km_rate, extra_hour_rate, driver_allowance_per_day, night_surcharge,
-  airport_charge, tolls_charge, tax_rate_percent, currency_code, effective_from, is_active
+  airport_charge, tolls_charge, tax_rate_percent, currency_code, effective_from, is_active, approval_status
 ) values
-  ('60000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002', 1000, 4, 40, 10, 50, 5, 20, 100, 25, 18, 'INR', now() - interval '1 day', true),
-  ('60000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002', null, 800, 4, 40, 10, 50, 5, 20, 100, 25, 18, 'INR', now() - interval '1 day', true),
-  ('60000000-0000-4000-8000-000000000003', '50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', null, '30000000-0000-4000-8000-000000000002', null, 600, 4, 40, 10, 50, 5, 20, 100, 25, 18, 'INR', now() - interval '1 day', true),
-  ('60000000-0000-4000-8000-000000000004', '50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', null, null, null, 400, 4, 40, 10, 50, 5, 20, 100, 25, 18, 'INR', now() - interval '1 day', true);
+  ('60000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002', 1000, 4, 40, 10, 50, 5, 20, 100, 25, 18, 'INR', now() - interval '1 day', true, 'approved'),
+  ('60000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002', null, 800, 4, 40, 10, 50, 5, 20, 100, 25, 18, 'INR', now() - interval '1 day', true, 'approved'),
+  ('60000000-0000-4000-8000-000000000003', '50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', null, '30000000-0000-4000-8000-000000000002', null, 600, 4, 40, 10, 50, 5, 20, 100, 25, 18, 'INR', now() - interval '1 day', true, 'approved'),
+  ('60000000-0000-4000-8000-000000000004', '50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', null, null, null, 400, 4, 40, 10, 50, 5, 20, 100, 25, 18, 'INR', now() - interval '1 day', true, 'approved'),
+  ('60000000-0000-4000-8000-000000000005', '50000000-0000-4000-8000-000000000001', 'local', '8hr_80km', '30000000-0000-4000-8000-000000000001', null, null, null, 2000, 8, 80, 10, 50, 5, 20, 100, 25, 18, 'INR', now() - interval '1 day', true, 'pending');
+
+insert into public.pricing_rules (
+  id, vehicle_category_id, trip_type, package_tier, origin_city_id,
+  base_fare, currency_code, effective_from, is_active
+) values (
+  '60000000-0000-4000-8000-000000000006', '50000000-0000-4000-8000-000000000001',
+  'local', '12hr_120km', '30000000-0000-4000-8000-000000000001',
+  0, 'INR', now() - interval '1 day', true
+);
 
 do $$
-declare v_status text; v_rule uuid; v_quote uuid; v_airport_quote uuid; v_expired_quote uuid; v_pricing jsonb; v_airport_pricing jsonb; v_booking jsonb; v_booking_again jsonb; v_expiry timestamptz; v_airport_pickup_at timestamptz;
+declare v_status text; v_rule uuid; v_quote uuid; v_airport_quote uuid; v_expired_quote uuid; v_pricing jsonb; v_airport_pricing jsonb; v_booking jsonb; v_booking_again jsonb; v_expiry timestamptz; v_airport_pickup_at timestamptz; v_quotes_before integer;
 begin
+  if (select count(*) from public.pricing_rules where id = any (array[
+    'a0000000-0000-4000-8000-000000000201'::uuid,
+    'a0000000-0000-4000-8000-000000000202'::uuid,
+    'a0000000-0000-4000-8000-000000000203'::uuid,
+    'a0000000-0000-4000-8000-000000000204'::uuid,
+    'a0000000-0000-4000-8000-000000000205'::uuid,
+    'a0000000-0000-4000-8000-000000000206'::uuid,
+    'a0000000-0000-4000-8000-000000000207'::uuid,
+    'a0000000-0000-4000-8000-000000000208'::uuid,
+    'a0000000-0000-4000-8000-000000000209'::uuid
+  ])) <> 9 or exists (
+    select 1 from public.pricing_rules
+    where id = any (array[
+      'a0000000-0000-4000-8000-000000000201'::uuid,
+      'a0000000-0000-4000-8000-000000000202'::uuid,
+      'a0000000-0000-4000-8000-000000000203'::uuid,
+      'a0000000-0000-4000-8000-000000000204'::uuid,
+      'a0000000-0000-4000-8000-000000000205'::uuid,
+      'a0000000-0000-4000-8000-000000000206'::uuid,
+      'a0000000-0000-4000-8000-000000000207'::uuid,
+      'a0000000-0000-4000-8000-000000000208'::uuid,
+      'a0000000-0000-4000-8000-000000000209'::uuid
+    ]) and (approval_status <> 'test_only' or is_active)
+  ) then
+    raise exception 'The nine identified Asian Paints rules were not all quarantined';
+  end if;
+
+  select resolution.resolution_status into v_status
+  from public.pricing_rules test_rule
+  cross join lateral public.resolve_pricing_rule(
+    test_rule.vehicle_category_id, test_rule.trip_type, test_rule.package_tier,
+    test_rule.origin_city_id, test_rule.origin_location_id,
+    test_rule.destination_city_id, test_rule.destination_location_id, now()
+  ) resolution
+  where test_rule.id = 'a0000000-0000-4000-8000-000000000201';
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' then raise exception 'Known Asian Paints test pricing resolved'; end if;
+
+  if (select approval_status from public.pricing_rules where id = '60000000-0000-4000-8000-000000000006') <> 'pending' then
+    raise exception 'New pricing rule did not default to pending approval';
+  end if;
+
+  select r.resolution_status into v_status
+  from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'local', '12hr_120km', '30000000-0000-4000-8000-000000000001', null, null, null, now()) r;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' then raise exception 'Default-pending pricing rule was resolved'; end if;
+
   select r.resolution_status, r.pricing_rule_id into v_status, v_rule
   from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002', now()) r;
   if v_status <> 'AVAILABLE' or v_rule <> '60000000-0000-4000-8000-000000000001' then raise exception 'Exact location pair priority failed'; end if;
@@ -53,7 +108,7 @@ begin
 
   select r.resolution_status, r.pricing_rule_id into v_status, v_rule
   from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'airport_transfer', 'airport_transfer', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002', now()) r;
-  if v_status <> 'AVAILABLE' or v_rule <> '60000000-0000-4000-8000-000000000001' then raise exception 'Airport transfer did not fall back to the configured local 4hr/40km rate'; end if;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' or v_rule is not null then raise exception 'Airport transfer resolved using local pricing'; end if;
 
   v_airport_pickup_at := (date_trunc('day', (now() at time zone 'Asia/Kolkata') + interval '1 day') + interval '12 hours') at time zone 'Asia/Kolkata';
   select q.result_status, q.quote_id, q.pricing into v_status, v_airport_quote, v_airport_pricing
@@ -62,10 +117,11 @@ begin
     '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002',
     v_airport_pickup_at, '50000000-0000-4000-8000-000000000001', 3::smallint, 1::smallint, 7.6::numeric, 0.4::numeric
   ) q;
-  if v_status <> 'CREATED'
-    or v_airport_pricing->>'pricingRuleId' <> '60000000-0000-4000-8000-000000000001'
-    or v_airport_pricing #>> '{components,total}' <> '1333.40' then
-    raise exception 'Airport transfer quote did not use the server-calculated local fallback: %', v_airport_pricing;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' or v_airport_quote is not null then
+    raise exception 'Airport transfer created a quote without a dedicated approved airport rule';
+  end if;
+  if (select count(*) from public.quotes) <> 0 then
+    raise exception 'Unavailable airport pricing created a quote record';
   end if;
 
   select r.resolution_status into v_status
@@ -75,6 +131,37 @@ begin
   select r.resolution_status into v_status
   from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'local', '8hr_80km', '30000000-0000-4000-8000-000000000001', null, null, null, now()) r;
   if v_status <> 'ONLINE_PRICING_UNAVAILABLE' then raise exception 'Strict package tier matching failed'; end if;
+
+  -- A rule must be approved, active, and effective at the requested pickup.
+  select r.resolution_status into v_status
+  from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'local', '8hr_80km', '30000000-0000-4000-8000-000000000001', null, null, null, now()) r;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' then raise exception 'Pending pricing rule was resolved'; end if;
+  update public.pricing_rules set approval_status = 'test_only' where id = '60000000-0000-4000-8000-000000000005';
+  select r.resolution_status into v_status
+  from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'local', '8hr_80km', '30000000-0000-4000-8000-000000000001', null, null, null, now()) r;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' then raise exception 'Test-only pricing rule was resolved'; end if;
+  update public.pricing_rules set approval_status = 'rejected' where id = '60000000-0000-4000-8000-000000000005';
+  select r.resolution_status into v_status
+  from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'local', '8hr_80km', '30000000-0000-4000-8000-000000000001', null, null, null, now()) r;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' then raise exception 'Rejected pricing rule was resolved'; end if;
+  update public.pricing_rules set approval_status = 'approved', is_active = false where id = '60000000-0000-4000-8000-000000000005';
+  select r.resolution_status into v_status
+  from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'local', '8hr_80km', '30000000-0000-4000-8000-000000000001', null, null, null, now()) r;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' then raise exception 'Inactive pricing rule was resolved'; end if;
+  update public.pricing_rules set is_active = true, effective_until = now() - interval '1 second' where id = '60000000-0000-4000-8000-000000000005';
+  select r.resolution_status into v_status
+  from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000001', 'local', '8hr_80km', '30000000-0000-4000-8000-000000000001', null, null, null, now()) r;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' then raise exception 'Expired pricing rule was resolved'; end if;
+
+  select count(*) into v_quotes_before from public.quotes;
+  select q.result_status into v_status
+  from public.create_booking_quote(
+    'local', '8hr_80km', '40000000-0000-4000-8000-000000000001', null, null,
+    now() + interval '1 day', '50000000-0000-4000-8000-000000000001', 2::smallint, 1::smallint, null, null
+  ) q;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' or (select count(*) from public.quotes) <> v_quotes_before then
+    raise exception 'Unavailable pricing created a quote record';
+  end if;
 
   select r.resolution_status into v_status
   from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000002', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', null, null, null, now()) r;

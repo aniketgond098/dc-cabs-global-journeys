@@ -367,7 +367,7 @@ describe("quote endpoint", () => {
   });
 
   it("maps unavailable online pricing to its stable error code", async () => {
-    const { database } = makeDatabase({
+    const { database, calls, rpcCalls } = makeDatabase({
       rpc: async () => ({ data: [{ result_status: "ONLINE_PRICING_UNAVAILABLE" }], error: null }),
     });
     const response = await handleCreateQuote(
@@ -380,6 +380,9 @@ describe("quote endpoint", () => {
     );
     expect(response.status).toBe(422);
     expect(await response.json()).toMatchObject({ error: { code: "online_pricing_unavailable" } });
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0]?.name).toBe("create_booking_quote");
+    expect(calls.some((call) => call.from === "quotes")).toBe(false);
   });
 });
 
