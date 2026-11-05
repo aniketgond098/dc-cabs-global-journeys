@@ -23,6 +23,7 @@ type Quote = {
     components?: Record<string, number | string | null>;
     allowances?: Record<string, number | null>;
     inputs?: Record<string, number | null>;
+    effectivePackageTier?: string;
   };
 };
 type Booking = {
@@ -62,6 +63,8 @@ function titleForComponent(value: string) {
       return "Base Fare";
     case "extraDistance":
       return "Extra Kilometres";
+    case "distanceFare":
+      return "One-way Distance Fare";
     case "extraDuration":
       return "Extra Hours";
     case "driverAllowance":
@@ -75,7 +78,7 @@ function titleForComponent(value: string) {
     case "subtotal":
       return "Subtotal";
     case "tax":
-      return "GST / Tax";
+      return "GST (5%)";
     case "total":
       return "Total Authoritative Fare";
     default:
@@ -308,7 +311,9 @@ function BookingPage() {
     ? Object.entries(quote.pricing.components).filter(
         ([key, val]) =>
           key !== "taxRatePercent" &&
-          (key === "baseFare" || key === "total" || (typeof val === "number" && val > 0)),
+          (key === "total" ||
+            (key === "baseFare" && typeof val === "number" && val > 0) ||
+            (typeof val === "number" && val > 0)),
       )
     : [];
 
@@ -1002,9 +1007,10 @@ function BookingPage() {
                 ) : null}
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Route distance and estimated driving time are planning estimates based on the road
-                route, not live traffic data. They do not determine your fare. The server applies
-                the official DC Cabs rate card for your itinerary.
+                The map ETA is a road-route estimate, not live traffic data. The server recalculates
+                route distance and ETA for your fare; browser map values are never used for pricing.
+                Server ETA is used only for the rate card's extra-hour calculation, not as
+                contracted rental time.
               </p>
             </div>
 
@@ -1018,24 +1024,37 @@ function BookingPage() {
               {routeEstimate ? (
                 <div className="flex flex-col gap-2 border-b border-border py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="eyebrow">Driving route estimate</p>
+                    <p className="eyebrow">Estimated arrival</p>
                   </div>
                   <div className="text-left sm:text-right">
                     <p className="text-sm font-semibold">
                       {routeEstimate.distanceKm.toFixed(1)} km{" "}
                       <span className="px-2 font-normal text-muted-foreground">·</span>{" "}
                       <span>
-                        Estimated drive time{" "}
+                        ETA{" "}
                         {(() => {
                           const effectiveHours =
                             trafficEstimate?.trafficDurationHours ?? routeEstimate.durationHours;
                           const totalMins = Math.round(effectiveHours * 60);
+                          const estimatedArrival = pickupAt
+                            ? new Date(Date.parse(pickupAt) + effectiveHours * 60 * 60 * 1000)
+                            : null;
+                          const arrivalLabel =
+                            estimatedArrival && selectedCity?.timezone
+                              ? new Intl.DateTimeFormat("en-IN", {
+                                  timeZone: selectedCity.timezone,
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                }).format(estimatedArrival)
+                              : null;
                           if (totalMins >= 60) {
                             const hrs = Math.floor(totalMins / 60);
                             const mins = totalMins % 60;
-                            return mins > 0 ? `${hrs} hr ${mins} min` : `${hrs} hr`;
+                            const duration = mins > 0 ? `${hrs} hr ${mins} min` : `${hrs} hr`;
+                            return arrivalLabel ? `${arrivalLabel} (${duration})` : duration;
                           }
-                          return `${totalMins} min`;
+                          const duration = `${totalMins} min`;
+                          return arrivalLabel ? `${arrivalLabel} (${duration})` : duration;
                         })()}
                       </span>
                     </p>
@@ -1788,6 +1807,14 @@ function QuotePanel({
 
       {allowances?.["includedKm"] != null || inputs?.["distanceKm"] != null ? (
         <div className="mt-4 space-y-1.5 border-y border-border/60 py-3 text-xs text-muted-foreground">
+          {quote.pricing.effectivePackageTier ? (
+            <div className="flex justify-between">
+              <span>Applied package:</span>
+              <span className="font-medium text-foreground">
+                {quote.pricing.effectivePackageTier.replaceAll("_", " / ")}
+              </span>
+            </div>
+          ) : null}
           {allowances?.["includedKm"] != null ? (
             <div className="flex justify-between">
               <span>Included distance:</span>
@@ -1806,6 +1833,29 @@ function QuotePanel({
             <div className="flex justify-between">
               <span>Calculated route:</span>
               <span className="font-medium text-foreground">{inputs["distanceKm"]} km</span>
+            </div>
+          ) : null}
+          {allowances?.["minimumDailyKm"] != null ? (
+            <div className="flex justify-between">
+              <span>Minimum billable distance:</span>
+              <span className="font-medium text-foreground">
+                {Number(allowances["minimumDailyKm"]) * Number(inputs?.["tripDays"] ?? 1)} km
+              </span>
+            </div>
+          ) : null}
+          {inputs?.["billableDistanceKm"] != null &&
+          inputs["billableDistanceKm"] !== inputs["distanceKm"] ? (
+            <div className="flex justify-between">
+              <span>Billable distance:</span>
+              <span className="font-medium text-foreground">{inputs["billableDistanceKm"]} km</span>
+            </div>
+          ) : null}
+          {inputs?.["durationHours"] != null ? (
+            <div className="flex justify-between">
+              <span>Server ETA estimate:</span>
+              <span className="font-medium text-foreground">
+                {Number(inputs["durationHours"]).toFixed(2)} hours
+              </span>
             </div>
           ) : null}
         </div>

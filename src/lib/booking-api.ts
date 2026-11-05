@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { createBookingPaymentToken } from "@/lib/razorpay";
+import { calculateTrafficAwareDuration } from "@/lib/map/routing";
 import { resolveServerRoute } from "@/lib/server-route";
 import type { RouteResolutionInput, ServerRouteMetrics } from "@/lib/server-route";
 
@@ -671,6 +672,10 @@ export async function handleCreateQuote(
         );
       }
     }
+    const serverEtaHours = route
+      ? calculateTrafficAwareDuration(route.distanceKm, route.durationHours, input.pickupAt)
+          .trafficDurationHours
+      : null;
     const legacyQuote = () =>
       database.rpc("create_booking_quote", {
         p_trip_type: input.tripType,
@@ -699,8 +704,8 @@ export async function handleCreateQuote(
           p_vehicle_category_id: input.vehicleCategoryId,
           p_passenger_count: input.passengerCount,
           p_trip_days: input.tripDays,
-          p_route_distance_km: input.tripType === "local" ? null : route.distanceKm,
-          p_route_estimated_duration_hours: route.durationHours,
+          p_route_distance_km: route.distanceKm,
+          p_route_estimated_duration_hours: serverEtaHours,
         })
       : await legacyQuote();
     if (
