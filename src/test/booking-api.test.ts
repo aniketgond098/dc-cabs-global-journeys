@@ -154,6 +154,11 @@ describe("catalog endpoints", () => {
               vehicle_category_id: "00000000-0000-4000-8000-000000000002",
               vehicle_categories: {
                 id: "00000000-0000-4000-8000-000000000002",
+                code: "MUMBAI_LUXURY_VAN",
+                name: "Luxury Van",
+                passenger_capacity: 7,
+                luggage_capacity: 6,
+                models: ["Mercedes GLE 350", "Toyota Vellfire", "Mercedes V-Class"],
                 pricing_type: "unclassified",
               },
             },
@@ -173,7 +178,15 @@ describe("catalog endpoints", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      data: [{ vehicle_categories: { pricing_type: "unclassified" } }],
+      data: [
+        {
+          vehicle_categories: {
+            code: "MUMBAI_LUXURY_VAN",
+            models: ["Mercedes GLE 350", "Toyota Vellfire", "Mercedes V-Class"],
+            pricing_type: "unclassified",
+          },
+        },
+      ],
     });
     const vehicleQuery = calls.find((call) => call.from === "city_vehicle_categories");
     const includesPricingType = vehicleQuery?.operations.some(
@@ -181,7 +194,8 @@ describe("catalog endpoints", () => {
         Array.isArray(operation) &&
         operation[0] === "select" &&
         typeof operation[1] === "string" &&
-        operation[1].includes("pricing_type"),
+        operation[1].includes("pricing_type") &&
+        operation[1].includes("models"),
     );
     expect(includesPricingType).toBe(true);
   });
