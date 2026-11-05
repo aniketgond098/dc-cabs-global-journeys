@@ -52,7 +52,12 @@ function makeDatabase(
 const quotePayload = {
   tripType: "local",
   packageTier: "4hr_40km",
+  originCityId: "00000000-0000-4000-8000-000000000004",
+  originAddress: "Mumbai Airport Terminal 1, Mumbai",
   originLocationId: "00000000-0000-4000-8000-000000000001",
+  destinationCityId: "00000000-0000-4000-8000-000000000004",
+  destinationAddress: "BKC, Mumbai",
+  destinationLocationId: "00000000-0000-4000-8000-000000000005",
   pickupAt: new Date(Date.now() + 86_400_000).toISOString(),
   vehicleCategoryId: "00000000-0000-4000-8000-000000000002",
   passengerCount: 2,
@@ -321,6 +326,7 @@ describe("catalog endpoints", () => {
 });
 
 describe("quote endpoint", () => {
+  const routeResolver = vi.fn().mockResolvedValue({ distanceKm: 12.4, durationHours: 0.6 });
   it("allows same-origin POSTs and rejects cross-origin browser requests", async () => {
     const sameOrigin = new Request("https://site.test/api/v1/quotes", {
       method: "POST",
@@ -369,17 +375,20 @@ describe("quote endpoint", () => {
         body: JSON.stringify(quotePayload),
       }),
       database,
+      routeResolver,
     );
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({
       quoteId: "quote-1",
       pricing: { components: { total: 1180 } },
     });
-    expect(rpcCalls[0]?.name).toBe("create_booking_quote");
+    expect(rpcCalls[0]?.name).toBe("create_booking_quote_from_addresses");
     expect(rpcCalls[0]?.args).not.toHaveProperty("p_total_amount");
     expect(rpcCalls[0]?.args).toMatchObject({
-      p_estimated_distance_km: null,
-      p_estimated_duration_hours: null,
+      p_origin_city_id: quotePayload.originCityId,
+      p_origin_address: quotePayload.originAddress,
+      p_route_distance_km: null,
+      p_route_estimated_duration_hours: 0.6,
     });
 
     const manipulated = await handleCreateQuote(
@@ -389,6 +398,7 @@ describe("quote endpoint", () => {
         body: JSON.stringify({ ...quotePayload, totalAmount: 1 }),
       }),
       database,
+      routeResolver,
     );
     expect(manipulated.status).toBe(400);
     expect(rpcCalls).toHaveLength(1);
@@ -404,6 +414,7 @@ describe("quote endpoint", () => {
         }),
       }),
       database,
+      routeResolver,
     );
     expect(suppliedRouteMetrics.status).toBe(400);
     expect(rpcCalls).toHaveLength(1);
@@ -420,12 +431,130 @@ describe("quote endpoint", () => {
         body: JSON.stringify(quotePayload),
       }),
       database,
+      routeResolver,
     );
     expect(response.status).toBe(422);
     expect(await response.json()).toMatchObject({ error: { code: "online_pricing_unavailable" } });
     expect(rpcCalls).toHaveLength(1);
-    expect(rpcCalls[0]?.name).toBe("create_booking_quote");
+    expect(rpcCalls[0]?.name).toBe("create_booking_quote_from_addresses");
     expect(calls.some((call) => call.from === "quotes")).toBe(false);
+  });
+
+  it("does not trust browser coordinates or route metrics and only passes server route metrics", async () => {
+    const resolver = vi.fn().mockResolvedValue({ distanceKm: 31.25, durationHours: 1.2 });
+    const { database, rpcCalls } = makeDatabase({
+      rpc: async () => ({ data: [{ result_status: "ONLINE_PRICING_UNAVAILABLE" }], error: null }),
+    });
+    const response = await handleCreateQuote(
+      new Request("https://site.test/api/v1/quotes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...quotePayload,
+          tripType: "outstation",
+          packageTier: "outstation",
+        }),
+      }),
+      database,
+      resolver,
+    );
+    expect(response.status).toBe(422);
+    expect(resolver).toHaveBeenCalledWith(
+      expect.objectContaining({ originAddress: quotePayload.originAddress }),
+      database,
+    );
+    expect(rpcCalls[0]?.args).toMatchObject({
+      p_route_distance_km: 31.25,
+      p_route_estimated_duration_hours: 1.2,
+    });
+    expect(rpcCalls[0]?.args).not.toHaveProperty("p_estimated_duration_hours");
+  });
+
+  it("fails closed when a custom address cannot be validated without creating a quote", async () => {
+    const resolver = vi.fn().mockRejectedValue(new Error("private provider detail"));
+    const { database, calls, rpcCalls } = makeDatabase();
+    const response = await handleCreateQuote(
+      new Request("https://site.test/api/v1/quotes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...quotePayload,
+          originLocationId: undefined,
+          destinationLocationId: undefined,
+        }),
+      }),
+      database,
+      resolver,
+    );
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body).toMatchObject({ error: { code: "invalid_location" } });
+    expect(JSON.stringify(body)).not.toContain("private provider detail");
+    expect(rpcCalls).toHaveLength(0);
+    expect(calls.some((call) => call.from === "quotes")).toBe(false);
+  });
+
+  it("keeps catalog bookings compatible until the additive address migration is installed", async () => {
+    const { database, rpcCalls } = makeDatabase({
+      rpc: async (name) =>
+        name === "create_booking_quote_from_addresses"
+          ? {
+              data: null,
+              error: { code: "PGRST202", message: "Function not found in schema cache" },
+            }
+          : {
+              data: [{ result_status: "ONLINE_PRICING_UNAVAILABLE" }],
+              error: null,
+            },
+    });
+    const response = await handleCreateQuote(
+      new Request("https://site.test/api/v1/quotes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(quotePayload),
+      }),
+      database,
+      routeResolver,
+    );
+
+    expect(response.status).toBe(422);
+    expect(rpcCalls.map((call) => call.name)).toEqual([
+      "create_booking_quote_from_addresses",
+      "create_booking_quote",
+    ]);
+    expect(rpcCalls[1]?.args).toMatchObject({
+      p_estimated_distance_km: null,
+      p_estimated_duration_hours: null,
+    });
+  });
+
+  it("does not claim custom-address quote success before the migration is installed", async () => {
+    const { database, rpcCalls } = makeDatabase({
+      rpc: async () => ({
+        data: null,
+        error: { code: "PGRST202", message: "Function not found in schema cache" },
+      }),
+    });
+    const response = await handleCreateQuote(
+      new Request("https://site.test/api/v1/quotes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...quotePayload,
+          originLocationId: undefined,
+          destinationLocationId: undefined,
+        }),
+      }),
+      database,
+      routeResolver,
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      error: { code: "online_pricing_unavailable" },
+    });
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0]?.name).toBe("create_booking_quote_from_addresses");
   });
 });
 

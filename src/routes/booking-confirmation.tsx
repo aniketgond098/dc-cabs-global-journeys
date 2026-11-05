@@ -11,6 +11,10 @@ type BookingConfirmation = {
   trip_type: string;
   package_tier: string;
   passenger_count: number;
+  origin_address?: string | null;
+  destination_address?: string | null;
+  route_distance_km?: number | string | null;
+  route_estimated_duration_hours?: number | string | null;
   customer?: { full_name?: string } | null;
   origin_city?: { name?: string } | null;
   destination_city?: { name?: string } | null;
@@ -111,9 +115,20 @@ function BookingConfirmationPage() {
             <p>
               <span className="text-muted-foreground">Route</span>
               <br />
-              {booking.origin_city?.name ?? "Origin"} →{" "}
-              {booking.destination_city?.name ?? "Destination"}
+              {booking.origin_address ?? booking.origin_city?.name ?? "Origin"} →{" "}
+              {booking.destination_address ?? booking.destination_city?.name ?? "Destination"}
             </p>
+            {booking.route_distance_km !== null && booking.route_distance_km !== undefined ? (
+              <p>
+                <span className="text-muted-foreground">Driving route estimate</span>
+                <br />
+                {Number(booking.route_distance_km).toFixed(1)} km
+                {booking.route_estimated_duration_hours !== null &&
+                booking.route_estimated_duration_hours !== undefined
+                  ? ` · about ${Math.round(Number(booking.route_estimated_duration_hours) * 60)} min`
+                  : ""}
+              </p>
+            ) : null}
             <p>
               <span className="text-muted-foreground">Vehicle</span>
               <br />

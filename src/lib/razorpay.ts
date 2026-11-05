@@ -462,13 +462,39 @@ export async function handleGetBookingPaymentStatus(
     return fail("invalid_request", "The booking status request is invalid.", 400);
   }
   try {
-    const { data, error } = await database
+    const extended = await database
       .from("bookings")
       .select(
-        "booking_reference,status,payment_status,currency_code,total_amount,pickup_at,trip_type,package_tier,passenger_count,customer:customers(full_name),origin_city:cities!bookings_origin_city_id_fkey(name),destination_city:cities!bookings_destination_city_id_fkey(name),vehicle_category:vehicle_categories(name)",
+        "booking_reference,status,payment_status,currency_code,total_amount,pickup_at,trip_type,package_tier,passenger_count,origin_address,destination_address,route_distance_km,route_estimated_duration_hours,route_metric_source,customer:customers(full_name),origin_city:cities!bookings_origin_city_id_fkey(name),destination_city:cities!bookings_destination_city_id_fkey(name),vehicle_category:vehicle_categories(name)",
       )
       .eq("id", bookingId)
       .maybeSingle();
+    let data: unknown = extended.data;
+    let error: unknown = extended.error;
+    if (
+      error &&
+      ((typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        ((error as { code?: string }).code === "42703" ||
+          (error as { code?: string }).code === "PGRST204")) ||
+        (typeof error === "object" &&
+          error !== null &&
+          "message" in error &&
+          /origin_address|route_distance_km/i.test(
+            String((error as { message?: string }).message),
+          )))
+    ) {
+      const legacy = await database
+        .from("bookings")
+        .select(
+          "booking_reference,status,payment_status,currency_code,total_amount,pickup_at,trip_type,package_tier,passenger_count,customer:customers(full_name),origin_city:cities!bookings_origin_city_id_fkey(name),destination_city:cities!bookings_destination_city_id_fkey(name),vehicle_category:vehicle_categories(name)",
+        )
+        .eq("id", bookingId)
+        .maybeSingle();
+      data = legacy.data as unknown;
+      error = legacy.error as unknown;
+    }
     if (error) throw error;
     if (!data) return fail("booking_not_found", "The booking was not found.", 404);
     return json({ booking: data });
