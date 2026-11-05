@@ -48,6 +48,25 @@ async function startSearch() {
   return onChange;
 }
 
+async function startCityScopedSearch() {
+  vi.resetModules();
+  const { LocationSearch } = await import("@/components/booking/LocationSearch");
+  const onChange = vi.fn();
+  render(
+    <LocationSearch
+      label="From"
+      value={null}
+      onChange={onChange}
+      cityName="Mumbai"
+      cityLocations={[catalogLocation]}
+    />,
+  );
+  fireEvent.change(screen.getByRole("combobox", { name: "From" }), {
+    target: { value: "Unlisted Address" },
+  });
+  return onChange;
+}
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -241,4 +260,46 @@ describe("LocationSearch catalog validation with pluggable geocoding", () => {
       expect(screen.queryByText(/not available for online booking yet/i)).not.toBeInTheDocument();
     },
   );
+
+  it("keeps a custom typed address distinct and does not assign a city fallback location ID", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("photon.komoot.io")) return jsonResponse(geocodingResponse([]));
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const onChange = await startCityScopedSearch();
+    fireEvent.click(await screen.findByRole("option", { name: /Use “Unlisted Address” as a custom address/i }));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        label: "Unlisted Address",
+        source: "custom_address",
+        bookable: false,
+        coordinates: null,
+      }),
+    );
+    expect(onChange.mock.lastCall?.[0]).not.toHaveProperty("id");
+    expect(onChange.mock.lastCall?.[0].context).toMatch(/not verified in the DC Cabs catalog/i);
+  });
+
+  it("does not book an unmatched geocoder suggestion using the city catalog's first location", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/v1/catalog/locations")) return jsonResponse({ data: [] });
+      if (url.includes("photon.komoot.io")) return jsonResponse(geocodingResponse([suggestion]));
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const onChange = await startCityScopedSearch();
+    fireEvent.click(await screen.findByRole("option", { name: /Mumbai Airport/ }));
+
+    expect(await screen.findByText(/not available for online booking yet/i)).toBeInTheDocument();
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "geocoding", bookable: false }),
+    );
+    expect(onChange.mock.lastCall?.[0]).not.toHaveProperty("id");
+  });
 });

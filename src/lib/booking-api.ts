@@ -27,8 +27,6 @@ const QuoteRequestSchema = z
     vehicleCategoryId: uuid,
     passengerCount: z.number().int().min(1).max(50),
     tripDays: z.number().int().min(1).max(30).default(1),
-    estimatedDistanceKm: z.number().finite().min(0).max(10_000).optional(),
-    estimatedDurationHours: z.number().finite().min(0).max(720).optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -634,8 +632,8 @@ export async function handleCreateQuote(
       p_vehicle_category_id: input.vehicleCategoryId,
       p_passenger_count: input.passengerCount,
       p_trip_days: input.tripDays,
-      p_estimated_distance_km: input.estimatedDistanceKm ?? null,
-      p_estimated_duration_hours: input.estimatedDurationHours ?? null,
+      p_estimated_distance_km: null,
+      p_estimated_duration_hours: null,
     });
     if (dbError) throw dbError;
     const result = Array.isArray(data) ? data[0] : data;

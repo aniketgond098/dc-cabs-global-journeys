@@ -214,19 +214,6 @@ export const indiaCities: { name: string; at: [number, number]; hub?: boolean; s
   { name: "Gurugram (Gurgaon)", at: [77.03, 28.46], state: "Haryana" },
 ];
 
-const CITY_ID_OVERRIDES: Record<string, string> = {
-  Mumbai: "a0000000-0000-4000-8000-000000000003",
-  Pune: "a0000000-0000-4000-8000-000000000004",
-};
-
-export const clientCities = indiaCities.map((city, index) => ({
-  id:
-    CITY_ID_OVERRIDES[city.name] ??
-    `a0000000-0000-4000-8000-${String(20 + index).padStart(12, "0")}`,
-  name: city.name,
-  state: city.state,
-}));
-
 export const worldDestinations: { name: string; at: [number, number] }[] = [
   { name: "Dubai", at: [55.27, 25.2] },
   { name: "Abu Dhabi", at: [54.37, 24.45] },

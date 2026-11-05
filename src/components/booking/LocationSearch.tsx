@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CatalogLookupError,
   findCatalogMatch,
-  findNearestCatalogLocation,
   searchCatalogLocations,
   type CatalogLocation,
 } from "./catalog-location-match";
@@ -19,6 +18,7 @@ export type JourneyLocation = {
   context: string;
   coordinates: [number, number] | null;
   bookable: boolean;
+  source?: "catalog" | "geocoding" | "custom_address";
 };
 
 export type { GeocodingSuggestion };
@@ -30,6 +30,8 @@ export function LocationSearch({
   cityLocations,
   cityName,
   placeholder,
+  disabled = false,
+  disabledMessage,
   geocodingProvider = defaultGeocodingProvider,
 }: {
   label: string;
@@ -38,6 +40,8 @@ export function LocationSearch({
   cityLocations?: CatalogLocation[];
   cityName?: string;
   placeholder?: string;
+  disabled?: boolean;
+  disabledMessage?: string;
   geocodingProvider?: GeocodingProvider;
 }) {
   const [query, setQuery] = useState(value?.label ?? "");
@@ -180,6 +184,7 @@ export function LocationSearch({
           ? [Number(entry.longitude), Number(entry.latitude)]
           : null,
       bookable: true,
+      source: "catalog",
     };
     setQuery(location.label);
     onChange(location);
@@ -195,32 +200,16 @@ export function LocationSearch({
   }
 
   function selectCustomAddress(customText: string) {
-    if (!isCityScoped || !cityLocations?.length) {
-      if (suggestions.length > 0) {
-        void selectSuggestion(suggestions[0]);
-      }
-      return;
-    }
-    const defaultCityLocation =
-      cityLocations.find((loc) => loc.kind === "city_zone" || loc.kind === "doorstep") ??
-      cityLocations[0];
-    const coords: [number, number] | null =
-      defaultCityLocation && defaultCityLocation.longitude !== null && defaultCityLocation.latitude !== null
-        ? [Number(defaultCityLocation.longitude), Number(defaultCityLocation.latitude)]
-        : null;
-
     const chosen: JourneyLocation = {
-      id: defaultCityLocation.id,
-      cityId: defaultCityLocation.city_id,
       label: customText,
-      context: `Doorstep address in ${cityName ?? "selected city"}`,
-      coordinates: coords,
-      bookable: true,
+      context: `Custom address${cityName ? ` in ${cityName}` : ""}; not verified in the DC Cabs catalog`,
+      coordinates: null,
+      bookable: false,
+      source: "custom_address",
     };
     setQuery(chosen.label);
     onChange(chosen);
     setOpen(false);
-    setCatalogError("");
     setGeocodingError("");
     setSelectionError("");
   }
@@ -241,32 +230,21 @@ export function LocationSearch({
           ? await findCatalogMatch(suggestion.placeFormatted, coordinates)
           : null);
 
-      if (!catalogMatch && coordinates) {
-        catalogMatch = await findNearestCatalogLocation(coordinates);
-      }
-
       if (selectionRequest !== selectionRequestRef.current) return;
-
-      // In city-scoped mode, custom address / home in the city is bookable!
-      // Assign to the city's active doorstep or primary location ID.
-      const defaultCityLocation =
-        cityLocations?.find((loc) => loc.kind === "city_zone" || loc.kind === "doorstep") ??
-        cityLocations?.[0];
-
-      const chosenId = catalogMatch?.id ?? (isCityScoped ? defaultCityLocation?.id : undefined);
-      const chosenCityId =
-        catalogMatch?.city_id ?? (isCityScoped ? (defaultCityLocation?.city_id ?? cityLocations?.[0]?.city_id) : undefined);
-      const isBookable = Boolean(chosenId);
+      if (isCityScoped && catalogMatch && !cityLocations?.some((entry) => entry.id === catalogMatch?.id)) {
+        catalogMatch = null;
+      }
+      const isBookable = Boolean(catalogMatch);
 
       const chosen: JourneyLocation = {
-        ...(chosenId ? { id: chosenId } : {}),
-        ...(chosenCityId ? { cityId: chosenCityId } : {}),
+        ...(catalogMatch ? { id: catalogMatch.id, cityId: catalogMatch.city_id } : {}),
         label: suggestion.name,
         context: catalogMatch
           ? "Matched to an active DC Cabs location"
           : (suggestion.placeFormatted ?? (isCityScoped && cityName ? `Address in ${cityName}` : "Place location")),
         coordinates,
         bookable: isBookable,
+        source: catalogMatch ? "catalog" : "geocoding",
       };
 
       setQuery(chosen.label);
@@ -304,6 +282,7 @@ export function LocationSearch({
         id={`location-${label}`}
         className="mt-2 w-full border border-border bg-background px-4 py-4 text-base text-foreground outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
         autoComplete="off"
+        disabled={disabled}
         value={query}
         placeholder={
           placeholder ??
@@ -333,6 +312,9 @@ export function LocationSearch({
           if (event.key === "Escape") setOpen(false);
         }}
       />
+      {disabled && disabledMessage ? (
+        <p role="status" className="mt-2 text-xs text-muted-foreground">{disabledMessage}</p>
+      ) : null}
       {open && (isCityScoped ? true : query.trim().length >= 2) ? (
         <div
           id={`location-options-${label}`}
@@ -391,7 +373,7 @@ export function LocationSearch({
               <div className="flex items-center justify-between">
                 <span className="block text-sm font-semibold text-foreground">{suggestion.name}</span>
                 {isCityScoped ? (
-                  <span className="text-[10px] text-emerald-400 font-medium">Doorstep bookable</span>
+                  <span className="text-[10px] text-muted-foreground font-medium">Catalog check required</span>
                 ) : null}
               </div>
               <span className="mt-1 block text-xs text-muted-foreground">
@@ -414,10 +396,10 @@ export function LocationSearch({
               className="block w-full border-b border-border bg-surface/30 px-4 py-3 text-left transition hover:bg-surface focus:bg-surface focus:outline-none"
             >
               <span className="block text-sm font-semibold text-primary">
-                📍 Use &ldquo;{query.trim()}&rdquo; as doorstep address
+                📍 Use &ldquo;{query.trim()}&rdquo; as a custom address
               </span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                Doorstep pickup or drop anywhere in {cityName ?? "this city"}
+                Not verified for online booking; catalog locations remain required
               </span>
             </button>
           ) : null}
@@ -435,7 +417,9 @@ export function LocationSearch({
       ) : null}
       {value ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          {value.bookable ? "Available for online booking" : "Not available for online booking"}
+          {value.bookable && value.source === "catalog"
+            ? "Verified DC Cabs catalog location · available for online booking"
+            : "Custom or suggested address · not verified for online booking"}
         </p>
       ) : null}
       {catalogError ? (

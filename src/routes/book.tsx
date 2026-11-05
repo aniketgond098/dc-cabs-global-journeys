@@ -8,7 +8,8 @@ import type { CatalogLocation } from "@/components/booking/catalog-location-matc
 import { PaymentCheckout } from "@/components/booking/PaymentCheckout";
 import { VehicleCategoryCard, type Category } from "@/components/booking/VehicleCategoryCard";
 import { canContinueJourney } from "@/lib/booking-journey";
-import { clientCities } from "@/content/site";
+import { loadCityLocations, loadSupportedCities } from "@/lib/booking-catalog";
+import { buildQuoteRequestPayload, hasUnsupportedIntermediateStops } from "@/lib/booking-request";
 
 type TripType = "local" | "outstation" | "airport_transfer";
 type Quote = {
@@ -120,13 +121,18 @@ export const Route = createFileRoute("/book")({
 
 function BookingPage() {
   const [step, setStep] = useState(1);
-  const [cityId, setCityId] = useState("a0000000-0000-4000-8000-000000000003");
-  const [cities, setCities] = useState<{ id: string; name: string }[]>(clientCities);
+  const [cityId, setCityId] = useState("");
+  const [cities, setCities] = useState<{ id: string; name: string }[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(true);
+  const [citiesError, setCitiesError] = useState("");
+  const [cityCatalogRetry, setCityCatalogRetry] = useState(0);
   const [citySearchQuery, setCitySearchQuery] = useState("");
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const cityDropdownRef = useRef<HTMLDivElement | null>(null);
   const [cityLocations, setCityLocations] = useState<CatalogLocation[]>([]);
   const [locationsLoading, setLocationsLoading] = useState(false);
+  const [locationsError, setLocationsError] = useState("");
+  const [locationsRetry, setLocationsRetry] = useState(0);
   const [tripType, setTripType] = useState<TripType>("local");
   const [packageTier, setPackageTier] = useState("4hr_40km");
   const [pickup, setPickup] = useState<JourneyLocation | null>(null);
@@ -154,34 +160,64 @@ function BookingPage() {
   const [message, setMessage] = useState("");
   const [pricingUnavailable, setPricingUnavailable] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState("");
-  const [quoteRequestSubmitted, setQuoteRequestSubmitted] = useState(false);
 
   useEffect(() => {
-    fetch("/api/v1/catalog/cities?country_id=a0000000-0000-4000-8000-000000000001")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((result) => {
-        if (result?.data && Array.isArray(result.data) && result.data.length > 0) {
-          setCities(result.data);
+    const controller = new AbortController();
+    setCitiesLoading(true);
+    setCitiesError("");
+    setCities([]);
+    setCityId("");
+
+    void (async () => {
+      try {
+        const activeCities = await loadSupportedCities((input, init) =>
+          fetch(input, { ...init, signal: controller.signal }),
+        );
+        setCities(activeCities);
+        if (!activeCities.length) setCitiesError("No cities are currently available for online booking.");
+      } catch (cause) {
+        if (!controller.signal.aborted) {
+          setCitiesError(
+            cause instanceof Error ? cause.message : "Supported cities could not be loaded.",
+          );
         }
-      })
-      .catch(() => {});
-  }, []);
+      } finally {
+        if (!controller.signal.aborted) setCitiesLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [cityCatalogRetry]);
 
   useEffect(() => {
-    if (!cityId) return;
+    if (!cityId) {
+      setCityLocations([]);
+      setLocationsError("");
+      setLocationsLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setCityLocations([]);
     setLocationsLoading(true);
-    fetch(`/api/v1/catalog/locations?city_id=${cityId}`)
-      .then((res) => (res.ok ? res.json() : null))
+    setLocationsError("");
+    void loadCityLocations(cityId, (input, init) =>
+      fetch(input, { ...init, signal: controller.signal }),
+    )
       .then((result) => {
-        if (result?.data && Array.isArray(result.data)) {
-          setCityLocations(result.data);
+        setCityLocations(result);
+        if (!result.length) setLocationsError("No bookable pickup locations are available in this city yet.");
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) {
+          setLocationsError(
+            cause instanceof Error ? cause.message : "DC Cabs locations could not be loaded.",
+          );
         }
       })
-      .catch(() => {})
       .finally(() => {
-        setLocationsLoading(false);
+        if (!controller.signal.aborted) setLocationsLoading(false);
       });
-  }, [cityId]);
+    return () => controller.abort();
+  }, [cityId, locationsRetry]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -204,29 +240,13 @@ function BookingPage() {
     }
   }
 
-  const QUICK_HUBS = [
-    "Mumbai",
-    "Delhi",
-    "Bengaluru",
-    "Hyderabad",
-    "Chennai",
-    "Kolkata",
-    "Pune",
-    "Ahmedabad",
-    "Jaipur",
-    "Goa",
-    "Chandigarh",
-    "Kochi",
-    "Lucknow",
-  ];
-
   const filteredCities = useMemo(() => {
     if (!citySearchQuery.trim()) return cities;
     const q = citySearchQuery.toLowerCase();
     return cities.filter((c) => c.name.toLowerCase().includes(q));
   }, [cities, citySearchQuery]);
 
-  const selectedCity = cities.find((c) => c.id === cityId) ?? { id: cityId, name: "City" };
+  const selectedCity = cities.find((c) => c.id === cityId);
 
   const pickupAt = useMemo(() => {
     if (!pickupDate || !pickupTime) return "";
@@ -337,7 +357,6 @@ function BookingPage() {
     setIdempotencyKey("");
     setPricingUnavailable(false);
     setMessage("");
-    setQuoteRequestSubmitted(false);
   }
 
   function setTrip(value: TripType) {
@@ -390,9 +409,9 @@ function BookingPage() {
 
   async function requestQuote() {
     if (!pickup?.id || !destination?.id || !pickupAt || !vehicleId) return;
-    if (!routeEstimate) {
+    if (hasUnsupportedIntermediateStops(stops)) {
       setMessage(
-        "Driving route distance could not be determined. Please ensure your locations are selected and the route preview has loaded, or click Retry.",
+        "Online quotes currently support journeys with one pickup and one destination only. Remove every intermediate stop before requesting a fare.",
       );
       return;
     }
@@ -403,21 +422,17 @@ function BookingPage() {
       const response = await fetch("/api/v1/quotes", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify(buildQuoteRequestPayload({
           tripType,
           packageTier,
           originLocationId: pickup.id,
-          destinationCityId: destination.cityId,
+          ...(destination.cityId ? { destinationCityId: destination.cityId } : {}),
           destinationLocationId: destination.id,
           pickupAt,
           vehicleCategoryId: vehicleId,
           passengerCount: passengers,
           tripDays,
-          estimatedDistanceKm: Number(routeEstimate.distanceKm.toFixed(2)),
-          estimatedDurationHours: Number(
-            (trafficEstimate?.trafficDurationHours ?? routeEstimate.durationHours).toFixed(2),
-          ),
-        }),
+        })),
       });
       let result: (Quote | { error?: { code?: string; message?: string } }) | null = null;
       try {
@@ -434,9 +449,14 @@ function BookingPage() {
             "Online fares aren't available for this journey yet. Request a quote from our team.",
           );
         } else {
+          const requiresUntrustedRouteMetrics = /estimated (distance|duration) is required/i.test(
+            apiError?.message ?? "",
+          );
+          if (requiresUntrustedRouteMetrics) setPricingUnavailable(true);
           setMessage(
-            apiError?.message ??
-              "A fare could not be created. Please review your journey and try again.",
+            requiresUntrustedRouteMetrics
+              ? "Online pricing for this rate requires route distance or duration that cannot currently be validated securely. No fare was created; contact our team for a quote."
+              : apiError?.message ?? "A fare could not be created. Please review your journey and try again.",
           );
         }
         return;
@@ -520,7 +540,15 @@ function BookingPage() {
         </div>
 
         <div className="mt-12 border-y border-border py-6">
-          <BookingProgress step={step - 1} onStep={(nextStep) => setStep(nextStep + 1)} />
+          <BookingProgress
+            step={step - 1}
+            onStep={(nextStep) => {
+              const targetStep = nextStep + 1;
+              if (selectedCategory?.pricing_type === "price_on_request" && targetStep > 3) return;
+              if (targetStep > 3 && !quote) return;
+              setStep(targetStep);
+            }}
+          />
         </div>
 
         {message ? (
@@ -555,48 +583,19 @@ function BookingPage() {
             <div className="space-y-8">
               <div>
                 <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="eyebrow">Choose city</p>
+                  <p className="eyebrow">Choose supported city</p>
                   <p className="text-xs text-muted-foreground">
-                    Available in <span className="font-semibold text-primary">50+ cities across India</span> · Active:{" "}
-                    <span className="font-semibold text-foreground">{selectedCity.name}</span>
+                    {selectedCity ? `Active catalog: ${selectedCity.name}` : "Choose a city currently available for online booking"}
                   </p>
                 </div>
 
-                {/* Primary Hubs: 1-click quick selection */}
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {QUICK_HUBS.map((hubName) => {
-                    const city = cities.find(
-                      (c) =>
-                        c.name.toLowerCase() === hubName.toLowerCase() ||
-                        c.name.toLowerCase().startsWith(hubName.toLowerCase()),
-                    );
-                    if (!city) return null;
-                    const isSelected = cityId === city.id;
-                    return (
-                      <button
-                        type="button"
-                        key={city.id}
-                        aria-pressed={isSelected}
-                        onClick={() => handleSelectCity(city.id)}
-                        className={`border px-3.5 py-2 text-xs font-semibold uppercase tracking-wider transition ${
-                          isSelected
-                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                            : "border-border bg-charcoal text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                        }`}
-                      >
-                        {hubName}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Searchable dropdown for all 50+ cities in India */}
                 <div ref={cityDropdownRef} className="relative max-w-lg">
                   <div className="relative">
                     <input
                       type="text"
                       value={citySearchQuery}
-                      placeholder={`Search or select from all 50+ cities (e.g. Surat, Indore, Varanasi, Nagpur…) · Currently: ${selectedCity.name}`}
+                      disabled={citiesLoading || Boolean(citiesError)}
+                      placeholder={citiesLoading ? "Loading supported cities…" : selectedCity ? `Search supported cities · Currently: ${selectedCity.name}` : "Search supported cities"}
                       onFocus={() => setCityDropdownOpen(true)}
                       onClick={() => setCityDropdownOpen(true)}
                       onChange={(e) => {
@@ -619,7 +618,7 @@ function BookingPage() {
                   {cityDropdownOpen ? (
                     <div className="absolute z-40 mt-1 max-h-64 w-full overflow-y-auto border border-border bg-charcoal shadow-2xl">
                       <div className="flex items-center justify-between border-b border-border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        <span>All Indian Cities ({filteredCities.length})</span>
+                        <span>Supported cities ({filteredCities.length})</span>
                         <button
                           type="button"
                           onClick={() => setCityDropdownOpen(false)}
@@ -650,12 +649,30 @@ function BookingPage() {
                       })}
                       {filteredCities.length === 0 ? (
                         <p className="px-4 py-3 text-xs text-muted-foreground">
-                          No city found matching &ldquo;{citySearchQuery}&rdquo;
+                          {citySearchQuery ? `No supported city found matching “${citySearchQuery}”.` : "No supported cities are available."}
                         </p>
                       ) : null}
                     </div>
                   ) : null}
                 </div>
+                {citiesLoading ? (
+                  <p role="status" className="mt-2 text-xs text-muted-foreground">Loading supported cities from the DC Cabs catalog…</p>
+                ) : null}
+                {citiesError ? (
+                  <div role="alert" className="mt-3 text-xs text-muted-foreground">
+                    <p>{citiesError}</p>
+                    <button type="button" className="mt-1 underline" onClick={() => setCityCatalogRetry((count) => count + 1)}>Retry city catalog</button>
+                  </div>
+                ) : null}
+                {locationsLoading ? (
+                  <p role="status" className="mt-2 text-xs text-muted-foreground">Loading bookable locations for {selectedCity?.name}…</p>
+                ) : null}
+                {locationsError ? (
+                  <div role="alert" className="mt-3 text-xs text-muted-foreground">
+                    <p>{locationsError}</p>
+                    <button type="button" className="mt-1 underline" onClick={() => setLocationsRetry((count) => count + 1)}>Retry location catalog</button>
+                  </div>
+                ) : null}
               </div>
 
               <div>
@@ -680,7 +697,15 @@ function BookingPage() {
                   label="From (Pickup)"
                   value={pickup}
                   cityLocations={cityLocations}
-                  cityName={selectedCity.name}
+                  {...(selectedCity ? { cityName: selectedCity.name } : {})}
+                  disabled={!cityId || citiesLoading || locationsLoading || Boolean(citiesError || locationsError)}
+                  {...(!cityId
+                    ? { disabledMessage: "Choose a supported city before selecting a bookable pickup." }
+                    : locationsLoading
+                      ? { disabledMessage: "Loading active catalog locations…" }
+                      : locationsError
+                        ? { disabledMessage: "Bookable locations are temporarily unavailable." }
+                        : {})}
                   onChange={(value) => {
                     setPickup(value);
                     setRouteEstimate(null);
@@ -734,10 +759,18 @@ function BookingPage() {
                           </div>
                         </div>
                         <LocationSearch
-                          label={`Stop ${index + 1} in ${selectedCity.name}`}
+                          label={`Stop ${index + 1} in ${selectedCity?.name ?? "selected city"}`}
                           value={stop.label ? stop : null}
                           cityLocations={cityLocations}
-                          cityName={selectedCity.name}
+                          {...(selectedCity ? { cityName: selectedCity.name } : {})}
+                          disabled={!cityId || citiesLoading || locationsLoading || Boolean(citiesError || locationsError)}
+                          {...(!cityId
+                            ? { disabledMessage: "Choose a supported city first." }
+                            : locationsLoading
+                              ? { disabledMessage: "Loading active catalog locations…" }
+                              : locationsError
+                                ? { disabledMessage: "Bookable locations are temporarily unavailable." }
+                                : {})}
                           onChange={(value) => {
                             updateStop(index, value);
                           }}
@@ -763,6 +796,12 @@ function BookingPage() {
                   label="To (Dropoff)"
                   value={destination}
                   placeholder="Search any dropoff address, airport, hotel, city or landmark in India…"
+                  disabled={!cityId || citiesLoading || Boolean(citiesError)}
+                  {...(!cityId
+                    ? { disabledMessage: "Choose a supported city before selecting a destination." }
+                    : citiesError
+                      ? { disabledMessage: "The city catalog is temporarily unavailable." }
+                      : {})}
                   onChange={(value) => {
                     setDestination(value);
                     setRouteEstimate(null);
@@ -883,7 +922,7 @@ function BookingPage() {
             <div className="space-y-4">
               <BookingRouteMap
                 pickup={pickup}
-                stops={tripType === "local" && stops.length > 0 ? stops : undefined}
+                {...(tripType === "local" && stops.length > 0 ? { stops } : {})}
                 destination={destination}
                 onRoute={setRouteEstimate}
               />
@@ -999,7 +1038,7 @@ function BookingPage() {
                 <p className="eyebrow text-primary">No vehicles available</p>
                 <p className="mt-3 text-sm text-muted-foreground">
                   {categories.length > 0
-                    ? `No vehicle categories in our catalog can accommodate ${passengers} passengers in ${selectedCity.name}. Please adjust the passenger count or contact DC Cabs for specialized transport.`
+                    ? `No vehicle categories in our catalog can accommodate ${passengers} passengers in ${selectedCity?.name ?? "the selected city"}. Please adjust the passenger count or contact DC Cabs for specialized transport.`
                     : "There are no vehicle categories configured for this pickup at the selected time."}
                 </p>
                 <Link
@@ -1009,7 +1048,7 @@ function BookingPage() {
                     route: enquiryRoute,
                     date: pickupDate,
                     travelers: String(passengers),
-                    message: `Please help arrange transportation for ${passengers} passengers in ${selectedCity.name}.`,
+                    message: `Please help arrange transportation for ${passengers} passengers in ${selectedCity?.name ?? "the selected city"}.`,
                   }}
                   className="mt-5 inline-block text-xs font-bold uppercase tracking-widest text-primary underline"
                 >
@@ -1047,15 +1086,13 @@ function BookingPage() {
                 }}
                 className="bg-primary px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground disabled:opacity-40"
               >
-                {selectedCategory?.pricing_type === "price_on_request"
-                  ? "Continue to quote request"
-                  : "Continue to fare"}
+                Continue to fare
               </button>
             </div>
           </div>
         ) : null}
 
-        {step === 3 && !quoteRequestSubmitted ? (
+        {step === 3 ? (
           <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_0.8fr]">
             <div>
               <p className="eyebrow text-primary">
@@ -1070,7 +1107,7 @@ function BookingPage() {
               </h2>
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
                 {selectedCategory?.pricing_type === "price_on_request"
-                  ? `The selected category (${selectedCategory.name}) is priced on request based on group itinerary and vehicle specifications. No estimated or fake fares are calculated. Submit a quote request and our operations team will provide your quotation.`
+                  ? `The selected category (${selectedCategory.name}) requires a custom quotation. Online quote requests for this category are not connected yet.`
                   : "Your route, vehicle and travel requirements will be priced using the current DC Cabs server-side rate configuration. No fare is estimated in this browser."}
               </p>
               <div className="mt-8 border-y border-border">
@@ -1127,7 +1164,7 @@ function BookingPage() {
                     </span>
                   </div>
                   <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                    Tailored quotation prepared directly by DC Cabs operations for your group size, timing, and vehicle requirements.
+                    No request has been submitted. Use the contact link below to reach the DC Cabs team.
                   </p>
                 </div>
               ) : null}
@@ -1161,16 +1198,26 @@ function BookingPage() {
                   Back
                 </button>
                 {selectedCategory?.pricing_type === "price_on_request" ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMessage("");
-                      setStep(4);
+                  <Link
+                    to="/contact"
+                    search={{
+                      type: "Other",
+                      route: enquiryRoute,
+                      date: pickupDate,
+                      travelers: String(passengers),
+                      message: `Price-on-request category enquiry: ${selectedCategory.name}. Pickup time: ${pickupTime}.`,
                     }}
                     className="bg-primary px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground hover:bg-primary-tint"
                   >
-                    Request Quote
-                  </button>
+                    Contact DC Cabs
+                  </Link>
+                ) : hasUnsupportedIntermediateStops(stops) ? (
+                  <div className="text-sm text-muted-foreground">
+                    <p role="status" className="mb-2">
+                      Online quotes cannot include intermediate stops yet. Remove the stops before requesting a fare.
+                    </p>
+                    <button type="button" onClick={() => setStep(1)} className="underline">Edit journey</button>
+                  </div>
                 ) : (
                   <button
                     type="button"
@@ -1227,7 +1274,7 @@ function BookingPage() {
           </div>
         ) : null}
 
-        {step === 4 && !quoteRequestSubmitted ? (
+        {step === 4 ? (
           <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_0.75fr]">
             <div>
               <p className="eyebrow text-primary">Step 04 · Details</p>
@@ -1369,7 +1416,7 @@ function BookingPage() {
           </div>
         ) : null}
 
-        {step === 5 && !quoteRequestSubmitted ? (
+        {step === 5 ? (
           <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_0.75fr]">
             <div>
               <p className="eyebrow text-primary">
@@ -1440,31 +1487,14 @@ function BookingPage() {
                 >
                   Back to details
                 </button>
-                {selectedCategory?.pricing_type === "price_on_request" ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      setBusy(true);
-                      setTimeout(() => {
-                        setBusy(false);
-                        setQuoteRequestSubmitted(true);
-                      }, 250);
-                    }}
-                    className="bg-primary px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground hover:bg-primary-tint disabled:opacity-40"
-                  >
-                    {busy ? "Submitting request…" : "Submit Quote Request"}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={busy || quoteExpired}
-                    onClick={() => void createBooking()}
-                    className="bg-primary px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground disabled:opacity-40"
-                  >
-                    {busy ? "Securing booking…" : "Continue to secure payment"}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={busy || !quote || quoteExpired || selectedCategory?.pricing_type === "price_on_request"}
+                  onClick={() => void createBooking()}
+                  className="bg-primary px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground disabled:opacity-40"
+                >
+                  {busy ? "Securing booking…" : "Continue to secure payment"}
+                </button>
               </div>
             </div>
             {selectedCategory?.pricing_type === "price_on_request" ? (
@@ -1508,60 +1538,6 @@ function BookingPage() {
                 }}
               />
             )}
-          </div>
-        ) : null}
-
-        {quoteRequestSubmitted ? (
-          <div className="mt-8 border border-primary/40 bg-charcoal p-8 md:p-12">
-            <p className="eyebrow text-primary">Quote Request Received</p>
-            <h2 className="font-display mt-3 text-3xl font-bold uppercase md:text-4xl">
-              Thank you, {name}
-            </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Your quotation request for{" "}
-              <span className="font-semibold text-foreground">{selectedCategory?.name}</span>{" "}
-              ({passengers} passengers) from{" "}
-              <span className="font-semibold text-foreground">{pickupLabel}</span> to{" "}
-              <span className="font-semibold text-foreground">{destinationLabel}</span> has been
-              received. The DC Cabs operations team will prepare and send your quotation.
-            </p>
-            <div className="mt-6 grid gap-4 text-xs sm:grid-cols-2">
-              <div className="border border-border bg-background p-4">
-                <span className="text-muted-foreground">Pickup schedule:</span>
-                <p className="mt-1 font-semibold text-foreground">
-                  {pickupDate} at {pickupTime}
-                </p>
-              </div>
-              <div className="border border-border bg-background p-4">
-                <span className="text-muted-foreground">Contact details:</span>
-                <p className="mt-1 font-semibold text-foreground">
-                  {phone} · {email}
-                </p>
-              </div>
-            </div>
-            <div className="mt-8 flex flex-wrap gap-4">
-              <a
-                href={`https://wa.me/919987117974?text=${encodeURIComponent(
-                  `Hello DC Cabs, I have submitted a quotation request for ${selectedCategory?.name} (${passengers} passengers) from ${pickupLabel} to ${destinationLabel} on ${pickupDate} at ${pickupTime}. Customer: ${name} (${phone}).`,
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-primary px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground hover:bg-primary-tint"
-              >
-                Connect on WhatsApp to expedite quotation
-              </a>
-              <button
-                type="button"
-                onClick={() => {
-                  setQuoteRequestSubmitted(false);
-                  setStep(1);
-                  invalidateQuote();
-                }}
-                className="border border-border px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] hover:bg-surface"
-              >
-                Plan another journey
-              </button>
-            </div>
           </div>
         ) : null}
 
@@ -1661,24 +1637,24 @@ function QuotePanel({
         ) : null}
       </div>
 
-      {allowances?.includedKm != null || inputs?.distanceKm != null ? (
+      {allowances?.["includedKm"] != null || inputs?.["distanceKm"] != null ? (
         <div className="mt-4 space-y-1.5 border-y border-border/60 py-3 text-xs text-muted-foreground">
-          {allowances?.includedKm != null ? (
+          {allowances?.["includedKm"] != null ? (
             <div className="flex justify-between">
               <span>Included distance:</span>
-              <span className="font-medium text-foreground">{allowances.includedKm} km</span>
+              <span className="font-medium text-foreground">{allowances["includedKm"]} km</span>
             </div>
           ) : null}
-          {allowances?.includedHours != null ? (
+          {allowances?.["includedHours"] != null ? (
             <div className="flex justify-between">
               <span>Included duration:</span>
-              <span className="font-medium text-foreground">{allowances.includedHours} hours</span>
+              <span className="font-medium text-foreground">{allowances["includedHours"]} hours</span>
             </div>
           ) : null}
-          {inputs?.distanceKm != null ? (
+          {inputs?.["distanceKm"] != null ? (
             <div className="flex justify-between">
               <span>Calculated route:</span>
-              <span className="font-medium text-foreground">{inputs.distanceKm} km</span>
+              <span className="font-medium text-foreground">{inputs["distanceKm"]} km</span>
             </div>
           ) : null}
         </div>

@@ -334,6 +334,10 @@ describe("quote endpoint", () => {
     });
     expect(rpcCalls[0]?.name).toBe("create_booking_quote");
     expect(rpcCalls[0]?.args).not.toHaveProperty("p_total_amount");
+    expect(rpcCalls[0]?.args).toMatchObject({
+      p_estimated_distance_km: null,
+      p_estimated_duration_hours: null,
+    });
 
     const manipulated = await handleCreateQuote(
       new Request("https://site.test/api/v1/quotes", {
@@ -344,6 +348,21 @@ describe("quote endpoint", () => {
       database,
     );
     expect(manipulated.status).toBe(400);
+    expect(rpcCalls).toHaveLength(1);
+
+    const suppliedRouteMetrics = await handleCreateQuote(
+      new Request("https://site.test/api/v1/quotes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...quotePayload,
+          estimatedDistanceKm: 9000,
+          estimatedDurationHours: 700,
+        }),
+      }),
+      database,
+    );
+    expect(suppliedRouteMetrics.status).toBe(400);
     expect(rpcCalls).toHaveLength(1);
   });
 

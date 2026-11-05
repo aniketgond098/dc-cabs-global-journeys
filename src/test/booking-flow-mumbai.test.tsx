@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { VehicleCategoryCard } from "@/components/booking/VehicleCategoryCard";
-import { MUMBAI_VEHICLE_CATEGORIES } from "@/lib/booking-api";
+import type { Category } from "@/components/booking/VehicleCategoryCard";
+
+const MUMBAI_VEHICLE_CATEGORIES: Category[] = [
+  { id: "sedan", code: "MUMBAI_SEDAN", name: "Sedan", passenger_capacity: 4, luggage_capacity: 2, models: ["Maruti Dzire", "Alma"] },
+  { id: "suv", code: "MUMBAI_SUV", name: "SUV", passenger_capacity: 6, luggage_capacity: 4, models: ["Ertiga"] },
+  { id: "premium-sedan", code: "MUMBAI_PREMIUM_SEDAN", name: "Premium Sedan", passenger_capacity: 4, luggage_capacity: 2, models: ["Camry"] },
+  { id: "premium-suv", code: "MUMBAI_PREMIUM_SUV", name: "Premium SUV", passenger_capacity: 6, luggage_capacity: 4, models: ["Crysta"] },
+  { id: "hycross", code: "MUMBAI_HYCROSS_INVICTO", name: "Hycross", passenger_capacity: 6, luggage_capacity: 4, models: ["Hycross"] },
+  { id: "exclusive-suv", code: "MUMBAI_EXCLUSIVE_SUV", name: "Exclusive SUV", passenger_capacity: 6, luggage_capacity: 4, models: ["Fortuner"] },
+  { id: "luxury-sedan", code: "MUMBAI_LUXURY_SEDAN", name: "Luxury Sedan", passenger_capacity: 4, luggage_capacity: 2, models: ["Mercedes"] },
+  { id: "luxury-van", code: "MUMBAI_LUXURY_VAN", name: "Luxury Van", passenger_capacity: 7, luggage_capacity: 5, models: ["Mercedes GLE 350", "Toyota Vellfire", "Mercedes V-Class"], pricing_type: "price_on_request" },
+  { id: "coach", code: "MUMBAI_GROUP_COACH", name: "Group / Coach", passenger_capacity: 45, luggage_capacity: 30, models: ["Urbania 9 Seater", "Urbania 16 Seater", "35 Seater BharatBenz", "45 Seater BharatBenz", "45 Seater Volvo"], pricing_type: "price_on_request" },
+];
 
 describe("VehicleCategoryCard with Mumbai categories", () => {
   it("renders Sedan with models and fixed rate card badge", () => {
