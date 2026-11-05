@@ -97,6 +97,7 @@ export const nav = [
   { to: "/india-tours", label: "India Tours" },
   { to: "/destinations", label: "Destinations" },
   { to: "/book", label: "Book online" },
+  { to: "/login", label: "Customer login" },
   { to: "/about", label: "About" },
   { to: "/contact", label: "Contact" },
 ] as const;

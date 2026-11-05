@@ -51,3 +51,7 @@ Catalog location coordinates are stored with the location records and used only 
 Razorpay checkout is test-mode locked. Configure `RAZORPAY_KEY_ID` with a `rzp_test_` key ID, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` as server-side Netlify environment variables. The API returns only the test key ID and an opaque per-booking payment token to the guest browser. The webhook endpoint must be configured for `payment.captured` and `payment.failed`; the webhook secret must match the secret configured in the Razorpay dashboard. Do not configure live keys with this implementation.
 
 The Phase 5A seed contains temporary Asian Paints test pricing. It is only for booking-engine validation and must not be presented as public DC Cabs rates. Online quotes require active catalog records, vehicle availability, and a matching pricing rule for the selected city and trip.
+
+## Customer phone login
+
+The `/login` page uses Supabase Auth phone OTP in the browser. Configure `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as build-time variables (the older `VITE_SUPABASE_ANON_KEY` name is accepted as a fallback). These are public client credentials; never use `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY` in a `VITE_` variable. Phone sign-in and SMS delivery must also be enabled in Supabase Auth with an SMS provider configured. Until those settings and public variables exist in a deployment, the page displays a setup-required state. Guest booking remains available and does not require a login.

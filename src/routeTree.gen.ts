@@ -18,6 +18,7 @@ import { Route as CorporateMobilityRouteImport } from './routes/corporate-mobili
 import { Route as DestinationsRouteImport } from './routes/destinations'
 import { Route as FleetRouteImport } from './routes/fleet'
 import { Route as IndiaToursRouteImport } from './routes/india-tours'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ApiV1BookingsRouteImport } from './routes/api/v1/bookings'
 import { Route as ApiV1QuotesRouteImport } from './routes/api/v1/quotes'
 import { Route as ApiV1CatalogResourceRouteImport } from './routes/api/v1/catalog/$resource'
@@ -71,6 +72,11 @@ const IndiaToursRoute = IndiaToursRouteImport.update({
   path: '/india-tours',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1BookingsRoute = ApiV1BookingsRouteImport.update({
   id: '/api/v1/bookings',
   path: '/api/v1/bookings',
@@ -118,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/destinations': typeof DestinationsRoute
   '/fleet': typeof FleetRoute
   '/india-tours': typeof IndiaToursRoute
+  '/login': typeof LoginRoute
   '/api/v1/bookings': typeof ApiV1BookingsRoute
   '/api/v1/quotes': typeof ApiV1QuotesRoute
   '/api/v1/catalog/$resource': typeof ApiV1CatalogResourceRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/destinations': typeof DestinationsRoute
   '/fleet': typeof FleetRoute
   '/india-tours': typeof IndiaToursRoute
+  '/login': typeof LoginRoute
   '/api/v1/bookings': typeof ApiV1BookingsRoute
   '/api/v1/quotes': typeof ApiV1QuotesRoute
   '/api/v1/catalog/$resource': typeof ApiV1CatalogResourceRoute
@@ -155,6 +163,7 @@ export interface FileRoutesById {
   '/destinations': typeof DestinationsRoute
   '/fleet': typeof FleetRoute
   '/india-tours': typeof IndiaToursRoute
+  '/login': typeof LoginRoute
   '/api/v1/bookings': typeof ApiV1BookingsRoute
   '/api/v1/quotes': typeof ApiV1QuotesRoute
   '/api/v1/catalog/$resource': typeof ApiV1CatalogResourceRoute
@@ -175,6 +184,7 @@ export interface FileRouteTypes {
     | '/destinations'
     | '/fleet'
     | '/india-tours'
+    | '/login'
     | '/api/v1/bookings'
     | '/api/v1/quotes'
     | '/api/v1/catalog/$resource'
@@ -193,6 +203,7 @@ export interface FileRouteTypes {
     | '/destinations'
     | '/fleet'
     | '/india-tours'
+    | '/login'
     | '/api/v1/bookings'
     | '/api/v1/quotes'
     | '/api/v1/catalog/$resource'
@@ -211,6 +222,7 @@ export interface FileRouteTypes {
     | '/destinations'
     | '/fleet'
     | '/india-tours'
+    | '/login'
     | '/api/v1/bookings'
     | '/api/v1/quotes'
     | '/api/v1/catalog/$resource'
@@ -230,6 +242,7 @@ export interface RootRouteChildren {
   DestinationsRoute: typeof DestinationsRoute
   FleetRoute: typeof FleetRoute
   IndiaToursRoute: typeof IndiaToursRoute
+  LoginRoute: typeof LoginRoute
   ApiV1BookingsRoute: typeof ApiV1BookingsRoute
   ApiV1QuotesRoute: typeof ApiV1QuotesRoute
   ApiV1CatalogResourceRoute: typeof ApiV1CatalogResourceRoute
@@ -304,6 +317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndiaToursRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/bookings': {
       id: '/api/v1/bookings'
       path: '/api/v1/bookings'
@@ -366,6 +386,7 @@ const rootRouteChildren: RootRouteChildren = {
   DestinationsRoute: DestinationsRoute,
   FleetRoute: FleetRoute,
   IndiaToursRoute: IndiaToursRoute,
+  LoginRoute: LoginRoute,
   ApiV1BookingsRoute: ApiV1BookingsRoute,
   ApiV1QuotesRoute: ApiV1QuotesRoute,
   ApiV1CatalogResourceRoute: ApiV1CatalogResourceRoute,
