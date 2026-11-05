@@ -16,7 +16,7 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    ...(process.env.NODE_ENV === "production"
+    ...(process.env["NODE_ENV"] === "production"
       ? {}
       : {
           server: {

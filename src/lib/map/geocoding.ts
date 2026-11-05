@@ -37,7 +37,7 @@ export class PhotonGeocodingProvider implements GeocodingProvider {
 
     const url = `${this.baseUrl.replace(/\/$/, "")}/?${params.toString()}`;
     const response = await fetch(url, {
-      signal,
+      ...(signal ? { signal } : {}),
       headers: {
         Accept: "application/json",
       },

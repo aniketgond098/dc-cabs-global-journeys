@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { JourneyLocation } from "./LocationSearch";
 import { getMapStyle } from "@/lib/map/style";
-import { defaultRoutingProvider, type RouteEstimate, type RoutingProvider } from "@/lib/map/routing";
+import {
+  defaultRoutingProvider,
+  type RouteEstimate,
+  type RoutingProvider,
+} from "@/lib/map/routing";
 
 export type { RouteEstimate };
 
@@ -113,8 +117,8 @@ export function BookingRouteMap({
 
   const coordinatesUnavailable = Boolean(
     (pickup && !pickupCoordinates) ||
-      (destination && !destinationCoordinates) ||
-      activeStops.some((s) => s && !s.coordinates),
+    (destination && !destinationCoordinates) ||
+    activeStops.some((s) => s && !s.coordinates),
   );
 
   // If coordinates are explicitly unavailable or journey is cleared, clear route immediately
@@ -190,9 +194,7 @@ export function BookingRouteMap({
 
             const existingSource =
               typeof map.getSource === "function"
-                ? (map.getSource("dc-route") as
-                    | import("maplibre-gl").GeoJSONSource
-                    | undefined)
+                ? (map.getSource("dc-route") as import("maplibre-gl").GeoJSONSource | undefined)
                 : undefined;
 
             if (existingSource && typeof existingSource.setData === "function") {
@@ -278,7 +280,7 @@ export function BookingRouteMap({
     // If map already exists and is loaded, update directly without tearing down WebGL canvas
     if (mapRef.current && typeof mapRef.current.loaded === "function" && mapRef.current.loaded()) {
       import("maplibre-gl").then((module) => {
-        const maplibregl = module.default ?? module;
+        const maplibregl = module;
         if (mapRef.current && !disposed) {
           applyMarkersAndRoute(mapRef.current, maplibregl);
         }
@@ -289,13 +291,10 @@ export function BookingRouteMap({
     // Otherwise initialize MapLibre
     let resizeObserver: ResizeObserver | null = null;
 
-    void Promise.all([
-      import("maplibre-gl"),
-      import("maplibre-gl/dist/maplibre-gl-worker.mjs?url"),
-    ])
+    void Promise.all([import("maplibre-gl"), import("maplibre-gl/dist/maplibre-gl-worker.mjs?url")])
       .then(([module, workerModule]) => {
         if (disposed || !containerRef.current) return;
-        const maplibregl = module.default ?? module;
+        const maplibregl = module;
         const workerUrl = (workerModule as { default?: string })?.default ?? workerModule;
         if (workerUrl && typeof maplibregl.setWorkerUrl === "function") {
           maplibregl.setWorkerUrl(String(workerUrl));
@@ -306,7 +305,6 @@ export function BookingRouteMap({
           style: getMapStyle(),
           center,
           zoom: 11,
-          attributionControl: true,
         });
         mapRef.current = map;
 
@@ -481,9 +479,7 @@ export function BookingRouteMap({
 
       {pickup && destination && !mapReady && !mapError && !coordinatesUnavailable ? (
         <div className="pointer-events-none absolute inset-0 grid place-items-center bg-charcoal/70 p-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            Loading your route preview…
-          </p>
+          <p className="text-sm text-muted-foreground">Loading your route preview…</p>
         </div>
       ) : null}
     </div>

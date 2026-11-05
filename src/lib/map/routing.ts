@@ -33,7 +33,11 @@ export function calculateTrafficAwareDuration(
   distanceKm: number,
   baseDurationHours: number,
   pickupDateOrIso?: string | Date,
-): { trafficDurationHours: number; trafficCondition: TrafficCondition; trafficDelayMinutes: number } {
+): {
+  trafficDurationHours: number;
+  trafficCondition: TrafficCondition;
+  trafficDelayMinutes: number;
+} {
   let hour = 12;
   try {
     const d = pickupDateOrIso ? new Date(pickupDateOrIso) : new Date();
@@ -69,7 +73,7 @@ export function calculateTrafficAwareDuration(
 
   // City routes (under 40 km): enforce realistic Indian urban speed ceilings
   if (distanceKm <= 40) {
-    const maxUrbanSpeed = isNight ? 32 : (isPeakHour ? 18 : 24);
+    const maxUrbanSpeed = isNight ? 32 : isPeakHour ? 18 : 24;
     const minTimeHours = distanceKm / maxUrbanSpeed;
     realisticDuration = Math.max(realisticDuration, minTimeHours);
   } else {
@@ -111,22 +115,18 @@ export class OsrmRoutingProvider implements RoutingProvider {
     signalOrStops?: AbortSignal | [number, number][],
     stops?: [number, number][],
   ): Promise<RouteEstimate> {
-    const signal =
-      signalOrStops && "aborted" in signalOrStops ? signalOrStops : undefined;
+    const signal = signalOrStops && "aborted" in signalOrStops ? signalOrStops : undefined;
     const rawStops = Array.isArray(signalOrStops) ? signalOrStops : stops;
     const validStops = (rawStops ?? []).filter(
       (s): s is [number, number] =>
-        Array.isArray(s) &&
-        s.length === 2 &&
-        Number.isFinite(s[0]) &&
-        Number.isFinite(s[1]),
+        Array.isArray(s) && s.length === 2 && Number.isFinite(s[0]) && Number.isFinite(s[1]),
     );
     const allCoords = [origin, ...validStops, destination];
     const coords = allCoords.map((c) => `${c[0]},${c[1]}`).join(";");
     const url = `${this.baseUrl.replace(/\/$/, "")}/${coords}?overview=full&geometries=geojson&steps=false`;
 
     const response = await fetch(url, {
-      signal,
+      ...(signal ? { signal } : {}),
       headers: {
         Accept: "application/json",
       },
@@ -153,10 +153,7 @@ export class OsrmRoutingProvider implements RoutingProvider {
     }
 
     const primaryRoute = body.routes[0];
-    if (
-      !primaryRoute.geometry?.coordinates ||
-      primaryRoute.geometry.coordinates.length < 2
-    ) {
+    if (!primaryRoute.geometry?.coordinates || primaryRoute.geometry.coordinates.length < 2) {
       throw new Error("Invalid route geometry returned");
     }
 
