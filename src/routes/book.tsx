@@ -322,7 +322,7 @@ function BookingPage() {
   }, [quote]);
 
   useEffect(() => {
-    if (!pickup?.bookable || !pickup.id || !pickupAt) {
+    if (!pickup?.cityId || !pickupAt) {
       setCategories([]);
       setVehicleId("");
       return;
@@ -330,7 +330,7 @@ function BookingPage() {
     const controller = new AbortController();
     setCategoriesLoading(true);
     setCategoriesError("");
-    const params = new URLSearchParams({ city_id: pickup.cityId ?? "", pickup_at: pickupAt });
+    const params = new URLSearchParams({ city_id: pickup.cityId, pickup_at: pickupAt });
     void fetch(`/api/v1/catalog/vehicle-categories?${params}`, { signal: controller.signal })
       .then(async (response) => {
         const result = (await response.json()) as {
@@ -355,7 +355,7 @@ function BookingPage() {
         if (!controller.signal.aborted) setCategoriesLoading(false);
       });
     return () => controller.abort();
-  }, [pickup?.id, pickup?.cityId, pickup?.bookable, pickupAt, categoryRetry]);
+  }, [pickup?.cityId, pickupAt, categoryRetry]);
 
   function invalidateQuote() {
     setQuote(null);
@@ -414,7 +414,7 @@ function BookingPage() {
   }
 
   async function requestQuote() {
-    if (!pickup?.id || !destination?.id || !pickupAt || !vehicleId) return;
+    if (!pickup?.cityId || !destination?.cityId || !pickupAt || !vehicleId) return;
     if (!canUseOnlineCheckout(selectedCategory)) {
       setMessage(
         "This category is not classified for fixed-price online booking. No quote or payment can be created; contact DC Cabs directly.",
@@ -438,9 +438,12 @@ function BookingPage() {
           buildQuoteRequestPayload({
             tripType,
             packageTier,
-            originLocationId: pickup.id,
-            ...(destination.cityId ? { destinationCityId: destination.cityId } : {}),
-            destinationLocationId: destination.id,
+            originCityId: pickup.cityId,
+            originAddress: [pickup.label, pickup.context].filter(Boolean).join(", "),
+            ...(pickup.id ? { originLocationId: pickup.id } : {}),
+            destinationCityId: destination.cityId,
+            destinationAddress: [destination.label, destination.context].filter(Boolean).join(", "),
+            ...(destination.id ? { destinationLocationId: destination.id } : {}),
             pickupAt,
             vehicleCategoryId: vehicleId,
             passengerCount: passengers,
@@ -528,7 +531,8 @@ function BookingPage() {
     }
   }
 
-  const stopsValid = tripType !== "local" || stops.every((s) => s.bookable && Boolean(s.id));
+  const stopsValid =
+    tripType !== "local" || stops.every((s) => Boolean(s.cityId && s.label.trim()));
   const journeyReady =
     canContinueJourney({
       pickup,
@@ -764,22 +768,14 @@ function BookingPage() {
                   value={pickup}
                   cityLocations={cityLocations}
                   {...(selectedCity ? { cityName: selectedCity.name } : {})}
-                  disabled={
-                    !cityId ||
-                    citiesLoading ||
-                    locationsLoading ||
-                    Boolean(citiesError || locationsError)
-                  }
+                  cityId={cityId}
+                  disabled={!cityId || citiesLoading || Boolean(citiesError)}
                   {...(!cityId
                     ? {
                         disabledMessage:
-                          "Choose a supported city before selecting a bookable pickup.",
+                          "Choose a supported service city before entering your pickup address.",
                       }
-                    : locationsLoading
-                      ? { disabledMessage: "Loading active catalog locations…" }
-                      : locationsError
-                        ? { disabledMessage: "Bookable locations are temporarily unavailable." }
-                        : {})}
+                    : {})}
                   onChange={(value) => {
                     setPickup(value);
                     setRouteEstimate(null);
@@ -839,22 +835,11 @@ function BookingPage() {
                           value={stop.label ? stop : null}
                           cityLocations={cityLocations}
                           {...(selectedCity ? { cityName: selectedCity.name } : {})}
-                          disabled={
-                            !cityId ||
-                            citiesLoading ||
-                            locationsLoading ||
-                            Boolean(citiesError || locationsError)
-                          }
+                          cityId={cityId}
+                          disabled={!cityId || citiesLoading || Boolean(citiesError)}
                           {...(!cityId
                             ? { disabledMessage: "Choose a supported city first." }
-                            : locationsLoading
-                              ? { disabledMessage: "Loading active catalog locations…" }
-                              : locationsError
-                                ? {
-                                    disabledMessage:
-                                      "Bookable locations are temporarily unavailable.",
-                                  }
-                                : {})}
+                            : {})}
                           onChange={(value) => {
                             updateStop(index, value);
                           }}
@@ -879,6 +864,9 @@ function BookingPage() {
                 <LocationSearch
                   label="To (Dropoff)"
                   value={destination}
+                  cityLocations={cityLocations}
+                  {...(selectedCity ? { cityName: selectedCity.name } : {})}
+                  cityId={cityId}
                   placeholder="Search any dropoff address, airport, hotel, city or landmark in India…"
                   disabled={!cityId || citiesLoading || Boolean(citiesError)}
                   {...(!cityId
@@ -1061,8 +1049,8 @@ function BookingPage() {
               ) : null}
               {(pickup && !pickup.bookable) || (destination && !destination.bookable) ? (
                 <p role="status" className="border border-border p-4 text-sm text-muted-foreground">
-                  This route includes a place that is not yet in the online booking catalog. Contact
-                  DC Cabs to arrange it.
+                  Custom addresses are checked against the selected service city and routed by the
+                  server when a fare is requested.
                 </p>
               ) : null}
               <button

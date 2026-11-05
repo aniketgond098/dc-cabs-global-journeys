@@ -6,8 +6,11 @@ describe("frontend booking request safeguards", () => {
     const payload = buildQuoteRequestPayload({
       tripType: "airport_transfer",
       packageTier: "airport_transfer",
+      originCityId: "catalog-origin-city-id",
+      originAddress: "Airport Terminal 1, Mumbai",
       originLocationId: "catalog-origin-id",
       destinationCityId: "catalog-city-id",
+      destinationAddress: "Business District, Mumbai",
       destinationLocationId: "catalog-destination-id",
       pickupAt: "2026-12-01T05:30:00.000Z",
       vehicleCategoryId: "catalog-vehicle-id",
@@ -18,8 +21,11 @@ describe("frontend booking request safeguards", () => {
     expect(payload).toEqual({
       tripType: "airport_transfer",
       packageTier: "airport_transfer",
+      originCityId: "catalog-origin-city-id",
+      originAddress: "Airport Terminal 1, Mumbai",
       originLocationId: "catalog-origin-id",
       destinationCityId: "catalog-city-id",
+      destinationAddress: "Business District, Mumbai",
       destinationLocationId: "catalog-destination-id",
       pickupAt: "2026-12-01T05:30:00.000Z",
       vehicleCategoryId: "catalog-vehicle-id",

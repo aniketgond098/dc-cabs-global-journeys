@@ -1,6 +1,9 @@
 export type BookableJourneyLocation = {
   id?: string;
+  cityId?: string;
+  label?: string;
   bookable: boolean;
+  source?: "catalog" | "geocoding" | "custom_address";
 };
 
 export function canContinueJourney({
@@ -15,10 +18,10 @@ export function canContinueJourney({
   categoriesError: string;
 }): boolean {
   return Boolean(
-    pickup?.id &&
-    pickup.bookable &&
-    destination?.id &&
-    destination.bookable &&
+    pickup?.cityId &&
+    pickup.label?.trim() &&
+    destination?.cityId &&
+    destination.label?.trim() &&
     pickupAt &&
     Date.parse(pickupAt) > Date.now() &&
     !categoriesError,

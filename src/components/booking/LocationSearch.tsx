@@ -29,6 +29,7 @@ export function LocationSearch({
   onChange,
   cityLocations,
   cityName,
+  cityId,
   placeholder,
   disabled = false,
   disabledMessage,
@@ -39,6 +40,7 @@ export function LocationSearch({
   onChange: (location: JourneyLocation | null) => void;
   cityLocations?: CatalogLocation[];
   cityName?: string;
+  cityId?: string;
   placeholder?: string;
   disabled?: boolean;
   disabledMessage?: string;
@@ -200,8 +202,9 @@ export function LocationSearch({
 
   function selectCustomAddress(customText: string) {
     const chosen: JourneyLocation = {
+      ...(cityId ? { cityId } : {}),
       label: customText,
-      context: `Custom address${cityName ? ` in ${cityName}` : ""}; not verified in the DC Cabs catalog`,
+      context: `Customer address${cityName ? ` in ${cityName}` : ""}`,
       coordinates: null,
       bookable: false,
       source: "custom_address",
@@ -223,11 +226,36 @@ export function LocationSearch({
       const coordinates = suggestion.coordinates;
       if (selectionRequest !== selectionRequestRef.current) return;
 
-      let catalogMatch =
-        (await findCatalogMatch(suggestion.name, coordinates)) ??
-        (suggestion.placeFormatted
-          ? await findCatalogMatch(suggestion.placeFormatted, coordinates)
-          : null);
+      let catalogMatch: CatalogLocation | null = null;
+      if (isCityScoped) {
+        const normalize = (text: string) =>
+          text
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, " ")
+            .trim();
+        const names = [suggestion.name, suggestion.placeFormatted]
+          .filter((entry): entry is string => Boolean(entry))
+          .map(normalize);
+        catalogMatch =
+          cityLocations?.find((entry) => names.includes(normalize(entry.name))) ?? null;
+        if (!catalogMatch) {
+          try {
+            catalogMatch =
+              (await findCatalogMatch(suggestion.name, coordinates)) ??
+              (suggestion.placeFormatted
+                ? await findCatalogMatch(suggestion.placeFormatted, coordinates)
+                : null);
+          } catch (cause) {
+            if (cause instanceof CatalogLookupError) setCatalogError(cause.message);
+          }
+        }
+      } else {
+        catalogMatch =
+          (await findCatalogMatch(suggestion.name, coordinates)) ??
+          (suggestion.placeFormatted
+            ? await findCatalogMatch(suggestion.placeFormatted, coordinates)
+            : null);
+      }
 
       if (selectionRequest !== selectionRequestRef.current) return;
       if (
@@ -240,7 +268,11 @@ export function LocationSearch({
       const isBookable = Boolean(catalogMatch);
 
       const chosen: JourneyLocation = {
-        ...(catalogMatch ? { id: catalogMatch.id, cityId: catalogMatch.city_id } : {}),
+        ...(catalogMatch
+          ? { id: catalogMatch.id, cityId: catalogMatch.city_id }
+          : isCityScoped && cityId
+            ? { cityId }
+            : {}),
         label: suggestion.name,
         context: catalogMatch
           ? "Matched to an active DC Cabs location"
@@ -254,11 +286,9 @@ export function LocationSearch({
       setQuery(chosen.label);
       onChange(chosen);
       setOpen(false);
-      setCatalogError("");
-
       if (!isBookable) {
         setSelectionError(
-          "This location is not available for online booking yet. Choose a listed DC Cabs location or contact our team.",
+          "Address selected. It will be validated by DC Cabs before a fare is created.",
         );
       }
     } catch (cause) {
@@ -388,9 +418,7 @@ export function LocationSearch({
                   {suggestion.name}
                 </span>
                 {isCityScoped ? (
-                  <span className="text-[10px] text-muted-foreground font-medium">
-                    Catalog check required
-                  </span>
+                  <span className="text-[10px] text-muted-foreground font-medium">Address</span>
                 ) : null}
               </div>
               <span className="mt-1 block text-xs text-muted-foreground">
@@ -420,7 +448,7 @@ export function LocationSearch({
                 📍 Use &ldquo;{query.trim()}&rdquo; as a custom address
               </span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                Not verified for online booking; catalog locations remain required
+                Address will be checked for service availability before a fare is created
               </span>
             </button>
           ) : null}
@@ -440,7 +468,7 @@ export function LocationSearch({
         <p className="mt-2 text-xs text-muted-foreground">
           {value.bookable && value.source === "catalog"
             ? "Verified DC Cabs catalog location · available for online booking"
-            : "Custom or suggested address · not verified for online booking"}
+            : "Customer address · service area and route checked by the server when pricing"}
         </p>
       ) : null}
       {catalogError ? (

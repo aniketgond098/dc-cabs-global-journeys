@@ -1,6 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { createBookingPaymentToken } from "@/lib/razorpay";
+import { resolveServerRoute } from "@/lib/server-route";
+import type { RouteResolutionInput, ServerRouteMetrics } from "@/lib/server-route";
 
 export type BookingDatabase = SupabaseClient;
 
@@ -20,9 +22,12 @@ const QuoteRequestSchema = z
   .object({
     tripType: z.enum(tripTypes),
     packageTier: z.enum(packageTiers),
-    originLocationId: uuid,
+    originCityId: uuid,
+    originAddress: z.string().trim().min(1).max(500),
+    originLocationId: uuid.optional(),
     destinationCityId: uuid.optional(),
     destinationLocationId: uuid.optional(),
+    destinationAddress: z.string().trim().min(1).max(500),
     pickupAt: z.string().datetime({ offset: true }),
     vehicleCategoryId: uuid,
     passengerCount: z.number().int().min(1).max(50),
@@ -106,6 +111,19 @@ function json(data: unknown, status = 200): Response {
       "x-content-type-options": "nosniff",
     },
   });
+}
+
+function missingAddressQuoteRpc(cause: unknown): boolean {
+  if (!cause || typeof cause !== "object") return false;
+  const value = cause as { code?: unknown; message?: unknown };
+  return (
+    value.code === "PGRST202" ||
+    value.code === "42883" ||
+    (typeof value.message === "string" &&
+      /create_booking_quote_from_addresses.*(not found|schema cache|does not exist)/i.test(
+        value.message,
+      ))
+  );
 }
 
 function error(code: ApiErrorCode, message: string, status: number): Response {
@@ -602,6 +620,10 @@ function packageTierCompatible(tripType: string, packageTier: string): boolean {
 export async function handleCreateQuote(
   request: Request,
   database: BookingDatabase,
+  routeResolver: (
+    input: RouteResolutionInput,
+    database: BookingDatabase,
+  ) => Promise<ServerRouteMetrics> = resolveServerRoute,
 ): Promise<Response> {
   let body: unknown;
   try {
@@ -622,19 +644,81 @@ export async function handleCreateQuote(
   }
   const input = parsed.data;
   try {
-    const { data, error: dbError } = await database.rpc("create_booking_quote", {
-      p_trip_type: input.tripType,
-      p_package_tier: input.packageTier,
-      p_origin_location_id: input.originLocationId,
-      p_destination_city_id: input.destinationCityId ?? null,
-      p_destination_location_id: input.destinationLocationId ?? null,
-      p_pickup_at: input.pickupAt,
-      p_vehicle_category_id: input.vehicleCategoryId,
-      p_passenger_count: input.passengerCount,
-      p_trip_days: input.tripDays,
-      p_estimated_distance_km: null,
-      p_estimated_duration_hours: null,
-    });
+    let route: ServerRouteMetrics | null = null;
+    try {
+      route = await routeResolver(
+        {
+          originCityId: input.originCityId,
+          ...(input.originLocationId ? { originLocationId: input.originLocationId } : {}),
+          originAddress: input.originAddress,
+          destinationCityId: input.destinationCityId ?? input.originCityId,
+          ...(input.destinationLocationId
+            ? { destinationLocationId: input.destinationLocationId }
+            : {}),
+          destinationAddress: input.destinationAddress,
+        },
+        database,
+      );
+    } catch (cause) {
+      if (!(input.originLocationId && input.destinationLocationId)) {
+        return error(
+          "invalid_location",
+          cause instanceof Error &&
+            cause.message === "Selected city is not an active Indian service city"
+            ? "The selected city is not available for booking."
+            : "The selected addresses could not be verified or routed. Please review them and try again.",
+          422,
+        );
+      }
+    }
+    const legacyQuote = () =>
+      database.rpc("create_booking_quote", {
+        p_trip_type: input.tripType,
+        p_package_tier: input.packageTier,
+        p_origin_location_id: input.originLocationId!,
+        p_destination_city_id: input.destinationCityId ?? null,
+        p_destination_location_id: input.destinationLocationId!,
+        p_pickup_at: input.pickupAt,
+        p_vehicle_category_id: input.vehicleCategoryId,
+        p_passenger_count: input.passengerCount,
+        p_trip_days: input.tripDays,
+        p_estimated_distance_km: null,
+        p_estimated_duration_hours: null,
+      });
+    let { data, error: dbError } = route
+      ? await database.rpc("create_booking_quote_from_addresses", {
+          p_trip_type: input.tripType,
+          p_package_tier: input.packageTier,
+          p_origin_city_id: input.originCityId,
+          p_origin_location_id: input.originLocationId ?? null,
+          p_origin_address: input.originAddress,
+          p_destination_city_id: input.destinationCityId ?? input.originCityId,
+          p_destination_location_id: input.destinationLocationId ?? null,
+          p_destination_address: input.destinationAddress,
+          p_pickup_at: input.pickupAt,
+          p_vehicle_category_id: input.vehicleCategoryId,
+          p_passenger_count: input.passengerCount,
+          p_trip_days: input.tripDays,
+          p_route_distance_km: input.tripType === "local" ? null : route.distanceKm,
+          p_route_estimated_duration_hours: route.durationHours,
+        })
+      : await legacyQuote();
+    if (
+      dbError &&
+      missingAddressQuoteRpc(dbError) &&
+      input.originLocationId &&
+      input.destinationLocationId
+    ) {
+      const legacy = await legacyQuote();
+      data = legacy.data;
+      dbError = legacy.error;
+    } else if (dbError && missingAddressQuoteRpc(dbError)) {
+      return error(
+        "online_pricing_unavailable",
+        "Custom-address pricing is not available until the booking database update is installed.",
+        503,
+      );
+    }
     if (dbError) throw dbError;
     const result = Array.isArray(data) ? data[0] : data;
     if (!result) return await databaseFailure(new Error("Quote RPC returned no result"), "quote");
@@ -661,14 +745,18 @@ export async function handleCreateQuote(
           status: 422,
         },
         DISTANCE_REQUIRED: {
-          code: "invalid_request",
-          message: "Estimated distance is required for this rate.",
-          status: 400,
+          code: "online_pricing_unavailable",
+          message:
+            input.tripType === "local"
+              ? "Local pricing needs the complete rental itinerary distance. Route distance from pickup to drop-off is not used as the rental distance."
+              : "Online pricing needs a validated route distance that is not available for this request.",
+          status: 422,
         },
         DURATION_REQUIRED: {
-          code: "invalid_request",
-          message: "Estimated duration is required for this rate.",
-          status: 400,
+          code: "online_pricing_unavailable",
+          message:
+            "This fare requires contracted or actual rental hours. Estimated driving time is not used as billable rental hours.",
+          status: 422,
         },
       };
       const mapped = responses[result.result_status] ?? {

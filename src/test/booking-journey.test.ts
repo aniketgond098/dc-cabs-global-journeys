@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { canContinueJourney } from "@/lib/booking-journey";
 
-const activePickup = { id: "pickup-1", bookable: true };
-const activeDestination = { id: "destination-1", bookable: true };
+const activePickup = { id: "pickup-1", cityId: "city-1", label: "Pickup", bookable: true };
+const activeDestination = {
+  id: "destination-1",
+  cityId: "city-1",
+  label: "Destination",
+  bookable: true,
+};
 
 describe("booking journey readiness", () => {
   it.each(["map preview unavailable", "routing service failed"])(
@@ -21,13 +26,30 @@ describe("booking journey readiness", () => {
     },
   );
 
-  it("still requires both locations to be bookable catalog entries", () => {
+  it("allows custom addresses in the selected supported city without catalog IDs", () => {
     const pickupAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
     expect(
       canContinueJourney({
         pickup: activePickup,
-        destination: { id: "outside-catalog", bookable: false },
+        destination: {
+          cityId: "city-1",
+          label: "Custom destination",
+          bookable: false,
+          source: "custom_address",
+        },
+        pickupAt,
+        categoriesError: "",
+      }),
+    ).toBe(true);
+  });
+
+  it("requires city identity and address text for each endpoint", () => {
+    const pickupAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    expect(
+      canContinueJourney({
+        pickup: { id: "id-without-city", label: "Pickup", bookable: true },
+        destination: activeDestination,
         pickupAt,
         categoriesError: "",
       }),
