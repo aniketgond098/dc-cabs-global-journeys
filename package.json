@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:fixtures:mumbai:local": "bun scripts/run-local-mumbai-fixtures.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"

@@ -143,9 +143,8 @@ export function LocationSearch({
       }
 
       // 2. Search geographic places & doorstep addresses via Geocoding provider
-      const geocodeQuery = isCityScoped && cityName
-        ? `${query.trim()}, ${cityName}, India`
-        : query.trim();
+      const geocodeQuery =
+        isCityScoped && cityName ? `${query.trim()}, ${cityName}, India` : query.trim();
 
       void geocodingProvider
         .search(geocodeQuery, controller.signal)
@@ -231,7 +230,11 @@ export function LocationSearch({
           : null);
 
       if (selectionRequest !== selectionRequestRef.current) return;
-      if (isCityScoped && catalogMatch && !cityLocations?.some((entry) => entry.id === catalogMatch?.id)) {
+      if (
+        isCityScoped &&
+        catalogMatch &&
+        !cityLocations?.some((entry) => entry.id === catalogMatch?.id)
+      ) {
         catalogMatch = null;
       }
       const isBookable = Boolean(catalogMatch);
@@ -241,7 +244,8 @@ export function LocationSearch({
         label: suggestion.name,
         context: catalogMatch
           ? "Matched to an active DC Cabs location"
-          : (suggestion.placeFormatted ?? (isCityScoped && cityName ? `Address in ${cityName}` : "Place location")),
+          : (suggestion.placeFormatted ??
+            (isCityScoped && cityName ? `Address in ${cityName}` : "Place location")),
         coordinates,
         bookable: isBookable,
         source: catalogMatch ? "catalog" : "geocoding",
@@ -313,7 +317,9 @@ export function LocationSearch({
         }}
       />
       {disabled && disabledMessage ? (
-        <p role="status" className="mt-2 text-xs text-muted-foreground">{disabledMessage}</p>
+        <p role="status" className="mt-2 text-xs text-muted-foreground">
+          {disabledMessage}
+        </p>
       ) : null}
       {open && (isCityScoped ? true : query.trim().length >= 2) ? (
         <div
@@ -323,7 +329,8 @@ export function LocationSearch({
         >
           {isCityScoped && !query.trim() ? (
             <div className="border-b border-border bg-surface/40 px-4 py-2.5 text-xs text-muted-foreground">
-              💡 Type your exact home address, hotel, apartment, or colony in {cityName} above, or choose a hub below.
+              💡 Type your exact home address, hotel, apartment, or colony in {cityName} above, or
+              choose a hub below.
             </div>
           ) : null}
 
@@ -344,9 +351,13 @@ export function LocationSearch({
               <div className="flex items-center justify-between">
                 <span className="block text-sm font-semibold text-foreground">{entry.name}</span>
                 {entry.kind === "airport" ? (
-                  <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">Airport</span>
+                  <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                    Airport
+                  </span>
                 ) : entry.kind === "railway_station" ? (
-                  <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium text-foreground/80">Station</span>
+                  <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium text-foreground/80">
+                    Station
+                  </span>
                 ) : null}
               </div>
               <span className="mt-0.5 block text-xs text-muted-foreground">
@@ -357,7 +368,9 @@ export function LocationSearch({
 
           {suggestions.length ? (
             <p className="border-b border-border px-4 py-2 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-              {isCityScoped ? `Addresses & Localities in ${cityName ?? "city"}` : "Other places · availability checked before booking"}
+              {isCityScoped
+                ? `Addresses & Localities in ${cityName ?? "city"}`
+                : "Other places · availability checked before booking"}
             </p>
           ) : null}
           {suggestions.map((suggestion) => (
@@ -371,9 +384,13 @@ export function LocationSearch({
               className="block w-full border-b border-border px-4 py-3 text-left transition hover:bg-surface focus:bg-surface focus:outline-none disabled:opacity-50"
             >
               <div className="flex items-center justify-between">
-                <span className="block text-sm font-semibold text-foreground">{suggestion.name}</span>
+                <span className="block text-sm font-semibold text-foreground">
+                  {suggestion.name}
+                </span>
                 {isCityScoped ? (
-                  <span className="text-[10px] text-muted-foreground font-medium">Catalog check required</span>
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    Catalog check required
+                  </span>
                 ) : null}
               </div>
               <span className="mt-1 block text-xs text-muted-foreground">
@@ -387,7 +404,11 @@ export function LocationSearch({
             </button>
           ))}
 
-          {isCityScoped && query.trim().length >= 2 && !displayedCatalogLocations.some(l => l.name.toLowerCase() === query.trim().toLowerCase()) ? (
+          {isCityScoped &&
+          query.trim().length >= 2 &&
+          !displayedCatalogLocations.some(
+            (l) => l.name.toLowerCase() === query.trim().toLowerCase(),
+          ) ? (
             <button
               type="button"
               role="option"

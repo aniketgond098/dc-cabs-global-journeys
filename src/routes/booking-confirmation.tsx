@@ -27,8 +27,10 @@ function BookingConfirmationPage() {
   ).get("booking_id");
   const [booking, setBooking] = useState<BookingConfirmation | null>(null);
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    setError("");
     if (!bookingId) {
       setError("The booking reference is missing.");
       return;
@@ -73,7 +75,7 @@ function BookingConfirmationPage() {
       controller.abort();
       if (timeout !== undefined) window.clearTimeout(timeout);
     };
-  }, [bookingId]);
+  }, [bookingId, retryCount]);
 
   return (
     <section className="container-x min-h-[70vh] py-28">
@@ -81,7 +83,11 @@ function BookingConfirmationPage() {
       {booking ? (
         <div className="mt-8 max-w-3xl">
           <h1 className="font-display text-5xl font-bold uppercase">
-            {booking.payment_status === "paid" ? "Journey confirmed" : "Payment status"}
+            {booking.payment_status === "paid"
+              ? "Journey confirmed"
+              : booking.payment_status === "failed"
+                ? "Payment unsuccessful"
+                : "Payment status"}
           </h1>
           <p className="mt-4 text-muted-foreground">
             Booking {booking.booking_reference} · {booking.status.replaceAll("_", " ")}
@@ -120,9 +126,24 @@ function BookingConfirmationPage() {
             </p>
           </div>
           <p className="text-sm text-muted-foreground">
-            If your payment is still pending, wait briefly and refresh this page. For assistance,
-            contact DC Cabs through our support page.
+            {booking.payment_status === "pending"
+              ? "The payment provider is still updating this booking. This page checks automatically; you can also check again below."
+              : booking.payment_status === "failed"
+                ? "This booking has not been confirmed as paid. Contact DC Cabs for help before making another payment attempt."
+                : "Your payment has been recorded by the DC Cabs booking service."}
           </p>
+          {booking.payment_status === "pending" || booking.payment_status === "failed" ? (
+            <button
+              type="button"
+              onClick={() => {
+                setBooking(null);
+                setRetryCount((count) => count + 1);
+              }}
+              className="mt-5 border border-border px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em]"
+            >
+              Check payment status again
+            </button>
+          ) : null}
           <Link
             to="/contact"
             className="mt-6 inline-block border border-border px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em]"
@@ -131,9 +152,20 @@ function BookingConfirmationPage() {
           </Link>
         </div>
       ) : (
-        <p role="status" className="mt-8 text-muted-foreground">
-          {error || "Loading the latest booking status…"}
-        </p>
+        <div className="mt-8">
+          <p role={error ? "alert" : "status"} className="text-muted-foreground">
+            {error || "Loading the latest booking status…"}
+          </p>
+          {error ? (
+            <button
+              type="button"
+              onClick={() => setRetryCount((count) => count + 1)}
+              className="mt-5 border border-border px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em]"
+            >
+              Retry status lookup
+            </button>
+          ) : null}
+        </div>
       )}
     </section>
   );

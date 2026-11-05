@@ -5,9 +5,11 @@ import { BookingButton } from "./BookingButton";
 export function BookingProgress({
   step,
   onStep,
+  canNavigateToStep,
 }: {
   step: number;
   onStep: (step: number) => void;
+  canNavigateToStep?: (step: number) => boolean;
 }) {
   const bookingSteps = [
     "Route & schedule",
@@ -26,7 +28,7 @@ export function BookingProgress({
             <BookingButton
               type="button"
               variant="ghost"
-              disabled={index > step}
+              disabled={canNavigateToStep ? !canNavigateToStep(index) : index > step}
               aria-current={index === step ? "step" : undefined}
               onClick={() => onStep(index)}
               className={cn(

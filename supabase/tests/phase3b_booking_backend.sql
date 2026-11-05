@@ -13,13 +13,27 @@ insert into public.locations (id, city_id, kind, name, is_active)
 values
   ('40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 'airport', 'Test Airport', true),
   ('40000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000001', 'railway_station', 'Test Station', true);
-insert into public.vehicle_categories (id, code, name, passenger_capacity, is_active)
+insert into public.vehicle_categories (id, code, name, passenger_capacity, is_active, pricing_type)
 values
-  ('50000000-0000-4000-8000-000000000001', 'TEST', 'Test category', 4, true),
-  ('50000000-0000-4000-8000-000000000002', 'INACTIVE', 'Inactive category', 4, false),
-  ('50000000-0000-4000-8000-000000000003', 'UNAVAILABLE', 'Unavailable category', 4, true);
+  ('50000000-0000-4000-8000-000000000001', 'TEST', 'Test category (LOCAL TEST ONLY)', 4, true, 'fixed'),
+  ('50000000-0000-4000-8000-000000000002', 'INACTIVE', 'Inactive category (LOCAL TEST ONLY)', 4, false, 'fixed'),
+  ('50000000-0000-4000-8000-000000000003', 'UNAVAILABLE', 'Unavailable category (LOCAL TEST ONLY)', 4, true, 'fixed'),
+  ('50000000-0000-4000-8000-000000000004', 'POR', 'Price-on-request category (LOCAL TEST ONLY)', 4, true, 'price_on_request'),
+  ('50000000-0000-4000-8000-000000000005', 'UNCLASSIFIED', 'Unclassified category (LOCAL TEST ONLY)', 4, true, 'unclassified');
+insert into public.vehicle_categories (id, code, name, passenger_capacity, is_active)
+values ('50000000-0000-4000-8000-000000000006', 'DEFAULT', 'Default classification category (LOCAL TEST ONLY)', 4, true);
+do $$
+begin
+  if (select pricing_type from public.vehicle_categories where id = '50000000-0000-4000-8000-000000000006') <> 'unclassified' then
+    raise exception 'New catalog categories must default to unclassified pricing';
+  end if;
+end
+$$;
 insert into public.city_vehicle_categories (city_id, vehicle_category_id, is_available)
-values ('30000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', true);
+values
+  ('30000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', true),
+  ('30000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000004', true),
+  ('30000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000005', true);
 
 insert into public.pricing_rules (
   id, vehicle_category_id, trip_type, package_tier, origin_city_id, origin_location_id,
@@ -41,6 +55,15 @@ insert into public.pricing_rules (
   'local', '12hr_120km', '30000000-0000-4000-8000-000000000001',
   0, 'INR', now() - interval '1 day', true
 );
+
+insert into public.pricing_rules (
+  id, vehicle_category_id, trip_type, package_tier, origin_city_id,
+  base_fare, currency_code, effective_from, is_active, approval_status
+) values
+  ('60000000-0000-4000-8000-000000000007', '50000000-0000-4000-8000-000000000004',
+   'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', 1000, 'INR', now() - interval '1 day', true, 'approved'),
+  ('60000000-0000-4000-8000-000000000008', '50000000-0000-4000-8000-000000000005',
+   'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', 1000, 'INR', now() - interval '1 day', true, 'approved');
 
 do $$
 declare v_status text; v_rule uuid; v_quote uuid; v_airport_quote uuid; v_expired_quote uuid; v_pricing jsonb; v_airport_pricing jsonb; v_booking jsonb; v_booking_again jsonb; v_expiry timestamptz; v_airport_pickup_at timestamptz; v_quotes_before integer;
@@ -163,6 +186,24 @@ begin
     raise exception 'Unavailable pricing created a quote record';
   end if;
 
+  select q.result_status into v_status
+  from public.create_booking_quote(
+    'local', '4hr_40km', '40000000-0000-4000-8000-000000000001', null, null,
+    now() + interval '1 day', '50000000-0000-4000-8000-000000000004', 2::smallint, 1::smallint, 10::numeric, 1::numeric
+  ) q;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' or (select count(*) from public.quotes) <> v_quotes_before then
+    raise exception 'Price-on-request category generated a quote';
+  end if;
+
+  select q.result_status into v_status
+  from public.create_booking_quote(
+    'local', '4hr_40km', '40000000-0000-4000-8000-000000000001', null, null,
+    now() + interval '1 day', '50000000-0000-4000-8000-000000000005', 2::smallint, 1::smallint, 10::numeric, 1::numeric
+  ) q;
+  if v_status <> 'ONLINE_PRICING_UNAVAILABLE' or (select count(*) from public.quotes) <> v_quotes_before then
+    raise exception 'Unclassified category generated a quote';
+  end if;
+
   select r.resolution_status into v_status
   from public.resolve_pricing_rule('50000000-0000-4000-8000-000000000002', 'local', '4hr_40km', '30000000-0000-4000-8000-000000000001', null, null, null, now()) r;
   if v_status <> 'ONLINE_PRICING_UNAVAILABLE' then raise exception 'Unavailable pricing status failed'; end if;
@@ -173,7 +214,24 @@ begin
     '30000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002',
     now() + interval '1 day', '50000000-0000-4000-8000-000000000001', 2::smallint, 2::smallint, 50::numeric, 5::numeric
   ) q;
-  if v_status <> 'CREATED' or v_pricing #>> '{components,total}' <> '1516.30' then raise exception 'Quote amount was not server-calculated as expected: %', v_pricing; end if;
+  if v_status <> 'CREATED'
+    or v_pricing #>> '{components,taxRatePercent}' <> '5'
+    or (v_pricing #>> '{components,tax}')::numeric <> round((v_pricing #>> '{components,subtotal}')::numeric * 0.05, 2)
+    or (v_pricing #>> '{components,total}')::numeric <> (v_pricing #>> '{components,subtotal}')::numeric + (v_pricing #>> '{components,tax}')::numeric then
+    raise exception 'Quote did not use the server-enforced 5% GST calculation: %', v_pricing;
+  end if;
+
+  update public.vehicle_categories set pricing_type = 'price_on_request'
+  where id = '50000000-0000-4000-8000-000000000001';
+  select b.result_status into v_status
+  from public.create_booking_from_quote(v_quote, 'reclassified-category-key', repeat('e',64), 'Test Guest', 'guest@example.com', '+919876543210', 'IN', null, null) b;
+  if v_status <> 'QUOTE_ALREADY_CLAIMED'
+    or exists (select 1 from public.bookings where quote_id = v_quote)
+    or (select status from public.quotes where id = v_quote) <> 'open' then
+    raise exception 'A quote was converted after category became price-on-request';
+  end if;
+  update public.vehicle_categories set pricing_type = 'fixed'
+  where id = '50000000-0000-4000-8000-000000000001';
 
   select q.result_status into v_status
   from public.create_booking_quote(
@@ -237,6 +295,14 @@ begin
   if not has_function_privilege('service_role', 'public.create_booking_quote(public.trip_type,public.package_tier,uuid,uuid,uuid,timestamp with time zone,uuid,smallint,smallint,numeric,numeric)', 'EXECUTE')
     or not has_function_privilege('service_role', 'public.create_booking_from_quote(uuid,text,text,text,text,text,character,text,text)', 'EXECUTE') then
     raise exception 'Trusted backend RPC execution is not enabled';
+  end if;
+  if has_function_privilege('anon', 'public.resolve_pricing_rule(uuid,public.trip_type,public.package_tier,uuid,uuid,uuid,uuid,timestamp with time zone)', 'EXECUTE')
+    or has_function_privilege('authenticated', 'public.resolve_pricing_rule(uuid,public.trip_type,public.package_tier,uuid,uuid,uuid,uuid,timestamp with time zone)', 'EXECUTE')
+    or has_function_privilege('anon', 'public.claim_quote_for_checkout(uuid)', 'EXECUTE')
+    or has_function_privilege('authenticated', 'public.claim_quote_for_checkout(uuid)', 'EXECUTE')
+    or not has_function_privilege('service_role', 'public.resolve_pricing_rule(uuid,public.trip_type,public.package_tier,uuid,uuid,uuid,uuid,timestamp with time zone)', 'EXECUTE')
+    or not has_function_privilege('service_role', 'public.claim_quote_for_checkout(uuid)', 'EXECUTE') then
+    raise exception 'Pricing resolver or quote claim RPC grants were widened or removed';
   end if;
 end
 $$;

@@ -48,11 +48,14 @@ async function ensureCheckoutScript(): Promise<void> {
 export function PaymentCheckout({ booking }: { booking: BookingPayment }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [statusCheckAvailable, setStatusCheckAvailable] = useState(false);
+  const statusHref = `/booking-confirmation?booking_id=${encodeURIComponent(booking.id)}`;
 
   async function startCheckout() {
     if (busy) return;
     setBusy(true);
     setMessage("");
+    setStatusCheckAvailable(false);
     try {
       sessionStorage.setItem(`dc-payment:${booking.id}`, booking.paymentAccessToken);
       const response = await fetch("/api/v1/payments/create-order", {
@@ -85,26 +88,34 @@ export function PaymentCheckout({ booking }: { booking: BookingPayment }) {
         theme: { color: "#c8102e" },
         modal: { ondismiss: () => setBusy(false) },
         handler: async (checkout: CheckoutResponse) => {
-          const verified = await fetch("/api/v1/payments/verify", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              bookingId: booking.id,
-              paymentAccessToken: booking.paymentAccessToken,
-              orderId: checkout.razorpay_order_id,
-              paymentId: checkout.razorpay_payment_id,
-              signature: checkout.razorpay_signature,
-            }),
-          });
-          if (verified.ok)
-            window.location.assign(
-              `/booking-confirmation?booking_id=${encodeURIComponent(booking.id)}`,
-            );
-          else
+          try {
+            const verified = await fetch("/api/v1/payments/verify", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                bookingId: booking.id,
+                paymentAccessToken: booking.paymentAccessToken,
+                orderId: checkout.razorpay_order_id,
+                paymentId: checkout.razorpay_payment_id,
+                signature: checkout.razorpay_signature,
+              }),
+            });
+            if (verified.ok) {
+              window.location.assign(statusHref);
+              return;
+            }
             setMessage(
-              "We are checking your payment. Refresh this page shortly to see the latest status.",
+              "Payment verification has not completed. Check the secure booking status before trying payment again.",
             );
-          setBusy(false);
+            setStatusCheckAvailable(true);
+          } catch {
+            setMessage(
+              "We could not reach the verification service. Check the secure booking status before trying payment again.",
+            );
+            setStatusCheckAvailable(true);
+          } finally {
+            setBusy(false);
+          }
         },
       });
       gateway.on("payment.failed", () => {
@@ -137,6 +148,14 @@ export function PaymentCheckout({ booking }: { booking: BookingPayment }) {
         <p role="status" className="mt-4 text-sm text-muted-foreground">
           {message}
         </p>
+      ) : null}
+      {statusCheckAvailable ? (
+        <a
+          href={statusHref}
+          className="mt-4 inline-block text-xs font-semibold uppercase tracking-wider text-primary underline"
+        >
+          Check secure booking status
+        </a>
       ) : null}
     </div>
   );

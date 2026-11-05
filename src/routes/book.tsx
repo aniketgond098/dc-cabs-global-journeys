@@ -6,10 +6,13 @@ import { BookingProgress } from "@/components/booking/BookingProgress";
 import { JourneyLocation, LocationSearch } from "@/components/booking/LocationSearch";
 import type { CatalogLocation } from "@/components/booking/catalog-location-match";
 import { PaymentCheckout } from "@/components/booking/PaymentCheckout";
-import { VehicleCategoryCard, type Category } from "@/components/booking/VehicleCategoryCard";
+import { VehicleCategoryCard } from "@/components/booking/VehicleCategoryCard";
+import { canUseOnlineCheckout, type Category } from "@/components/booking/vehicle-category";
 import { canContinueJourney } from "@/lib/booking-journey";
-import { loadCityLocations, loadSupportedCities } from "@/lib/booking-catalog";
+import { loadCityLocations, loadSupportedCities, type SupportedCity } from "@/lib/booking-catalog";
 import { buildQuoteRequestPayload, hasUnsupportedIntermediateStops } from "@/lib/booking-request";
+import { validateCustomerDetails } from "@/lib/booking-customer-details";
+import { dateInTimeZone, pickupDateTimeToIso } from "@/lib/booking-time";
 
 type TripType = "local" | "outstation" | "airport_transfer";
 type Quote = {
@@ -40,7 +43,8 @@ const packages: Record<TripType, { value: string; label: string }[]> = {
   airport_transfer: [{ value: "airport_transfer", label: "Airport Transfer" }],
 };
 
-function todayDate() {
+function todayDate(timeZone?: string) {
+  if (timeZone) return dateInTimeZone(new Date(), timeZone);
   const date = new Date();
   const offset = date.getTimezoneOffset();
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
@@ -122,7 +126,7 @@ export const Route = createFileRoute("/book")({
 function BookingPage() {
   const [step, setStep] = useState(1);
   const [cityId, setCityId] = useState("");
-  const [cities, setCities] = useState<{ id: string; name: string }[]>([]);
+  const [cities, setCities] = useState<SupportedCity[]>([]);
   const [citiesLoading, setCitiesLoading] = useState(true);
   const [citiesError, setCitiesError] = useState("");
   const [cityCatalogRetry, setCityCatalogRetry] = useState(0);
@@ -156,6 +160,7 @@ function BookingPage() {
   const [phone, setPhone] = useState("");
   const [company, setCompany] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [showCustomerErrors, setShowCustomerErrors] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [pricingUnavailable, setPricingUnavailable] = useState(false);
@@ -174,7 +179,8 @@ function BookingPage() {
           fetch(input, { ...init, signal: controller.signal }),
         );
         setCities(activeCities);
-        if (!activeCities.length) setCitiesError("No cities are currently available for online booking.");
+        if (!activeCities.length)
+          setCitiesError("No cities are currently available for online booking.");
       } catch (cause) {
         if (!controller.signal.aborted) {
           setCitiesError(
@@ -204,7 +210,8 @@ function BookingPage() {
     )
       .then((result) => {
         setCityLocations(result);
-        if (!result.length) setLocationsError("No bookable pickup locations are available in this city yet.");
+        if (!result.length)
+          setLocationsError("No bookable pickup locations are available in this city yet.");
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) {
@@ -249,10 +256,9 @@ function BookingPage() {
   const selectedCity = cities.find((c) => c.id === cityId);
 
   const pickupAt = useMemo(() => {
-    if (!pickupDate || !pickupTime) return "";
-    const date = new Date(`${pickupDate}T${pickupTime}`);
-    return Number.isNaN(date.getTime()) ? "" : date.toISOString();
-  }, [pickupDate, pickupTime]);
+    if (!pickupDate || !pickupTime || !selectedCity?.timezone) return "";
+    return pickupDateTimeToIso(pickupDate, pickupTime, selectedCity.timezone);
+  }, [pickupDate, pickupTime, selectedCity?.timezone]);
 
   const trafficEstimate = useMemo(() => {
     if (!routeEstimate) return null;
@@ -268,6 +274,8 @@ function BookingPage() {
   }, [categories, passengers]);
 
   const selectedCategory = categories.find((category) => category.id === vehicleId) ?? null;
+  const customerErrors = validateCustomerDetails({ name, email, phone });
+  const customerDetailsValid = Object.keys(customerErrors).length === 0;
 
   // Auto-clear invalid vehicle selection if passenger count changes beyond category capacity
   useEffect(() => {
@@ -300,9 +308,7 @@ function BookingPage() {
     ? Object.entries(quote.pricing.components).filter(
         ([key, val]) =>
           key !== "taxRatePercent" &&
-          (key === "baseFare" ||
-            key === "total" ||
-            (typeof val === "number" && val > 0)),
+          (key === "baseFare" || key === "total" || (typeof val === "number" && val > 0)),
       )
     : [];
 
@@ -409,6 +415,12 @@ function BookingPage() {
 
   async function requestQuote() {
     if (!pickup?.id || !destination?.id || !pickupAt || !vehicleId) return;
+    if (!canUseOnlineCheckout(selectedCategory)) {
+      setMessage(
+        "This category is not classified for fixed-price online booking. No quote or payment can be created; contact DC Cabs directly.",
+      );
+      return;
+    }
     if (hasUnsupportedIntermediateStops(stops)) {
       setMessage(
         "Online quotes currently support journeys with one pickup and one destination only. Remove every intermediate stop before requesting a fare.",
@@ -422,17 +434,19 @@ function BookingPage() {
       const response = await fetch("/api/v1/quotes", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildQuoteRequestPayload({
-          tripType,
-          packageTier,
-          originLocationId: pickup.id,
-          ...(destination.cityId ? { destinationCityId: destination.cityId } : {}),
-          destinationLocationId: destination.id,
-          pickupAt,
-          vehicleCategoryId: vehicleId,
-          passengerCount: passengers,
-          tripDays,
-        })),
+        body: JSON.stringify(
+          buildQuoteRequestPayload({
+            tripType,
+            packageTier,
+            originLocationId: pickup.id,
+            ...(destination.cityId ? { destinationCityId: destination.cityId } : {}),
+            destinationLocationId: destination.id,
+            pickupAt,
+            vehicleCategoryId: vehicleId,
+            passengerCount: passengers,
+            tripDays,
+          }),
+        ),
       });
       let result: (Quote | { error?: { code?: string; message?: string } }) | null = null;
       try {
@@ -456,7 +470,8 @@ function BookingPage() {
           setMessage(
             requiresUntrustedRouteMetrics
               ? "Online pricing for this rate requires route distance or duration that cannot currently be validated securely. No fare was created; contact our team for a quote."
-              : apiError?.message ?? "A fare could not be created. Please review your journey and try again.",
+              : (apiError?.message ??
+                  "A fare could not be created. Please review your journey and try again."),
           );
         }
         return;
@@ -472,7 +487,12 @@ function BookingPage() {
   }
 
   async function createBooking() {
-    if (!quote || quoteExpired || busy) return;
+    if (!canUseOnlineCheckout(selectedCategory) || !quote || quoteExpired || busy) return;
+    if (!customerDetailsValid) {
+      setShowCustomerErrors(true);
+      setStep(4);
+      return;
+    }
     const key = idempotencyKey || crypto.randomUUID();
     setIdempotencyKey(key);
     setBusy(true);
@@ -519,6 +539,22 @@ function BookingPage() {
   const canContinueVehicle = Boolean(
     selectedCategory && passengers <= selectedCategory.passenger_capacity,
   );
+  const canNavigateToStep = (targetIndex: number) => {
+    const targetStep = targetIndex + 1;
+    if (targetStep === step) return true;
+    if (booking) return false;
+    if (targetStep < step) return true;
+    if (targetStep > step + 1) return false;
+    if (targetStep === 2) return journeyReady;
+    if (targetStep === 3) return canContinueVehicle;
+    if (targetStep === 4)
+      return Boolean(canUseOnlineCheckout(selectedCategory) && quote && !quoteExpired);
+    if (targetStep === 5)
+      return Boolean(
+        canUseOnlineCheckout(selectedCategory) && quote && !quoteExpired && customerDetailsValid,
+      );
+    return false;
+  };
 
   return (
     <section className="container-x min-h-[75vh] py-24 md:py-32">
@@ -542,11 +578,10 @@ function BookingPage() {
         <div className="mt-12 border-y border-border py-6">
           <BookingProgress
             step={step - 1}
+            canNavigateToStep={canNavigateToStep}
             onStep={(nextStep) => {
               const targetStep = nextStep + 1;
-              if (selectedCategory?.pricing_type === "price_on_request" && targetStep > 3) return;
-              if (targetStep > 3 && !quote) return;
-              setStep(targetStep);
+              if (canNavigateToStep(nextStep)) setStep(targetStep);
             }}
           />
         </div>
@@ -565,6 +600,7 @@ function BookingPage() {
                 to="/contact"
                 search={{
                   type: "Other",
+                  ...(selectedCategory?.name ? { vehicle: selectedCategory.name } : {}),
                   route: enquiryRoute,
                   date: pickupDate,
                   travelers: String(passengers),
@@ -585,7 +621,9 @@ function BookingPage() {
                 <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                   <p className="eyebrow">Choose supported city</p>
                   <p className="text-xs text-muted-foreground">
-                    {selectedCity ? `Active catalog: ${selectedCity.name}` : "Choose a city currently available for online booking"}
+                    {selectedCity
+                      ? `Active catalog: ${selectedCity.name}`
+                      : "Choose a city currently available for online booking"}
                   </p>
                 </div>
 
@@ -595,7 +633,13 @@ function BookingPage() {
                       type="text"
                       value={citySearchQuery}
                       disabled={citiesLoading || Boolean(citiesError)}
-                      placeholder={citiesLoading ? "Loading supported cities…" : selectedCity ? `Search supported cities · Currently: ${selectedCity.name}` : "Search supported cities"}
+                      placeholder={
+                        citiesLoading
+                          ? "Loading supported cities…"
+                          : selectedCity
+                            ? `Search supported cities · Currently: ${selectedCity.name}`
+                            : "Search supported cities"
+                      }
                       onFocus={() => setCityDropdownOpen(true)}
                       onClick={() => setCityDropdownOpen(true)}
                       onChange={(e) => {
@@ -639,38 +683,60 @@ function BookingPage() {
                               setCityDropdownOpen(false);
                             }}
                             className={`flex w-full items-center justify-between border-b border-border/50 px-4 py-2.5 text-left text-xs transition hover:bg-surface ${
-                              isSelected ? "bg-surface font-semibold text-primary" : "text-foreground"
+                              isSelected
+                                ? "bg-surface font-semibold text-primary"
+                                : "text-foreground"
                             }`}
                           >
                             <span>{c.name}</span>
-                            {isSelected ? <span className="text-[10px] text-primary">✓ Selected</span> : null}
+                            {isSelected ? (
+                              <span className="text-[10px] text-primary">✓ Selected</span>
+                            ) : null}
                           </button>
                         );
                       })}
                       {filteredCities.length === 0 ? (
                         <p className="px-4 py-3 text-xs text-muted-foreground">
-                          {citySearchQuery ? `No supported city found matching “${citySearchQuery}”.` : "No supported cities are available."}
+                          {citySearchQuery
+                            ? `No supported city found matching “${citySearchQuery}”.`
+                            : "No supported cities are available."}
                         </p>
                       ) : null}
                     </div>
                   ) : null}
                 </div>
                 {citiesLoading ? (
-                  <p role="status" className="mt-2 text-xs text-muted-foreground">Loading supported cities from the DC Cabs catalog…</p>
+                  <p role="status" className="mt-2 text-xs text-muted-foreground">
+                    Loading supported cities from the DC Cabs catalog…
+                  </p>
                 ) : null}
                 {citiesError ? (
                   <div role="alert" className="mt-3 text-xs text-muted-foreground">
                     <p>{citiesError}</p>
-                    <button type="button" className="mt-1 underline" onClick={() => setCityCatalogRetry((count) => count + 1)}>Retry city catalog</button>
+                    <button
+                      type="button"
+                      className="mt-1 underline"
+                      onClick={() => setCityCatalogRetry((count) => count + 1)}
+                    >
+                      Retry city catalog
+                    </button>
                   </div>
                 ) : null}
                 {locationsLoading ? (
-                  <p role="status" className="mt-2 text-xs text-muted-foreground">Loading bookable locations for {selectedCity?.name}…</p>
+                  <p role="status" className="mt-2 text-xs text-muted-foreground">
+                    Loading bookable locations for {selectedCity?.name}…
+                  </p>
                 ) : null}
                 {locationsError ? (
                   <div role="alert" className="mt-3 text-xs text-muted-foreground">
                     <p>{locationsError}</p>
-                    <button type="button" className="mt-1 underline" onClick={() => setLocationsRetry((count) => count + 1)}>Retry location catalog</button>
+                    <button
+                      type="button"
+                      className="mt-1 underline"
+                      onClick={() => setLocationsRetry((count) => count + 1)}
+                    >
+                      Retry location catalog
+                    </button>
                   </div>
                 ) : null}
               </div>
@@ -698,9 +764,17 @@ function BookingPage() {
                   value={pickup}
                   cityLocations={cityLocations}
                   {...(selectedCity ? { cityName: selectedCity.name } : {})}
-                  disabled={!cityId || citiesLoading || locationsLoading || Boolean(citiesError || locationsError)}
+                  disabled={
+                    !cityId ||
+                    citiesLoading ||
+                    locationsLoading ||
+                    Boolean(citiesError || locationsError)
+                  }
                   {...(!cityId
-                    ? { disabledMessage: "Choose a supported city before selecting a bookable pickup." }
+                    ? {
+                        disabledMessage:
+                          "Choose a supported city before selecting a bookable pickup.",
+                      }
                     : locationsLoading
                       ? { disabledMessage: "Loading active catalog locations…" }
                       : locationsError
@@ -727,7 +801,9 @@ function BookingPage() {
                         className="space-y-2 border-b border-border/50 pb-3 last:border-b-0 last:pb-0"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-primary">Stop {index + 1}</span>
+                          <span className="text-xs font-semibold text-primary">
+                            Stop {index + 1}
+                          </span>
                           <div className="flex items-center gap-2">
                             {index > 0 ? (
                               <button
@@ -763,13 +839,21 @@ function BookingPage() {
                           value={stop.label ? stop : null}
                           cityLocations={cityLocations}
                           {...(selectedCity ? { cityName: selectedCity.name } : {})}
-                          disabled={!cityId || citiesLoading || locationsLoading || Boolean(citiesError || locationsError)}
+                          disabled={
+                            !cityId ||
+                            citiesLoading ||
+                            locationsLoading ||
+                            Boolean(citiesError || locationsError)
+                          }
                           {...(!cityId
                             ? { disabledMessage: "Choose a supported city first." }
                             : locationsLoading
                               ? { disabledMessage: "Loading active catalog locations…" }
                               : locationsError
-                                ? { disabledMessage: "Bookable locations are temporarily unavailable." }
+                                ? {
+                                    disabledMessage:
+                                      "Bookable locations are temporarily unavailable.",
+                                  }
                                 : {})}
                           onChange={(value) => {
                             updateStop(index, value);
@@ -834,11 +918,16 @@ function BookingPage() {
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <label className="block text-sm">
-                  <span className="eyebrow">Pickup date</span>
+                  <span className="eyebrow">
+                    Pickup date
+                    {selectedCity
+                      ? ` · ${selectedCity.name} local time (${selectedCity.timezone})`
+                      : ""}
+                  </span>
                   <input
                     className="mt-2 w-full border border-border bg-background px-4 py-4 text-base [color-scheme:dark] focus:border-primary focus:outline-none"
                     type="date"
-                    min={todayDate()}
+                    min={todayDate(selectedCity?.timezone)}
                     required
                     value={pickupDate}
                     onChange={(event) => {
@@ -848,7 +937,12 @@ function BookingPage() {
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="eyebrow">Pickup time</span>
+                  <span className="eyebrow">
+                    Pickup time
+                    {selectedCity
+                      ? ` · ${selectedCity.name} local time (${selectedCity.timezone})`
+                      : ""}
+                  </span>
                   <input
                     className="mt-2 w-full border border-border bg-background px-4 py-4 text-base [color-scheme:dark] focus:border-primary focus:outline-none"
                     type="time"
@@ -861,6 +955,12 @@ function BookingPage() {
                   />
                 </label>
               </div>
+              {pickupDate && pickupTime && selectedCity && !pickupAt ? (
+                <p role="alert" className="text-xs text-destructive">
+                  The pickup date and time could not be interpreted in {selectedCity.name} local
+                  time. Please choose another time or contact DC Cabs.
+                </p>
+              ) : null}
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <div>
@@ -914,8 +1014,9 @@ function BookingPage() {
                 ) : null}
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Route distance and travel duration are calculated using driving road networks.
-                The server applies the official DC Cabs rate card for your itinerary.
+                Route distance and estimated driving time are planning estimates based on the road
+                route, not live traffic data. They do not determine your fare. The server applies
+                the official DC Cabs rate card for your itinerary.
               </p>
             </div>
 
@@ -929,43 +1030,26 @@ function BookingPage() {
               {routeEstimate ? (
                 <div className="flex flex-col gap-2 border-b border-border py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="eyebrow">Driving route & travel time</p>
-                    {trafficEstimate ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Includes traffic conditions (
-                        <span
-                          className={
-                            trafficEstimate.trafficCondition === "heavy"
-                              ? "font-semibold text-amber-500"
-                              : trafficEstimate.trafficCondition === "moderate"
-                                ? "font-semibold text-primary"
-                                : "font-semibold text-emerald-500"
-                          }
-                        >
-                          {trafficEstimate.trafficCondition} traffic
-                        </span>
-                        {trafficEstimate.trafficDelayMinutes > 0
-                          ? ` · ~${trafficEstimate.trafficDelayMinutes} min delay`
-                          : ""}
-                        )
-                      </p>
-                    ) : null}
+                    <p className="eyebrow">Driving route estimate</p>
                   </div>
                   <div className="text-left sm:text-right">
                     <p className="text-sm font-semibold">
                       {routeEstimate.distanceKm.toFixed(1)} km{" "}
                       <span className="px-2 font-normal text-muted-foreground">·</span>{" "}
-                      {(() => {
-                        const effectiveHours =
-                          trafficEstimate?.trafficDurationHours ?? routeEstimate.durationHours;
-                        const totalMins = Math.round(effectiveHours * 60);
-                        if (totalMins >= 60) {
-                          const hrs = Math.floor(totalMins / 60);
-                          const mins = totalMins % 60;
-                          return mins > 0 ? `${hrs} hr ${mins} min` : `${hrs} hr`;
-                        }
-                        return `${totalMins} min`;
-                      })()}
+                      <span>
+                        Estimated drive time{" "}
+                        {(() => {
+                          const effectiveHours =
+                            trafficEstimate?.trafficDurationHours ?? routeEstimate.durationHours;
+                          const totalMins = Math.round(effectiveHours * 60);
+                          if (totalMins >= 60) {
+                            const hrs = Math.floor(totalMins / 60);
+                            const mins = totalMins % 60;
+                            return mins > 0 ? `${hrs} hr ${mins} min` : `${hrs} hr`;
+                          }
+                          return `${totalMins} min`;
+                        })()}
+                      </span>
                     </p>
                   </div>
                 </div>
@@ -1098,24 +1182,26 @@ function BookingPage() {
               <p className="eyebrow text-primary">
                 {selectedCategory?.pricing_type === "price_on_request"
                   ? "Step 03 · Price on Request"
-                  : "Step 03 · Fare"}
+                  : selectedCategory?.pricing_type === "unclassified"
+                    ? "Step 03 · Pricing Unavailable"
+                    : "Step 03 · Fare"}
               </p>
               <h2 className="font-display mt-3 text-3xl font-bold uppercase">
                 {selectedCategory?.pricing_type === "price_on_request"
                   ? "Price on Request"
-                  : "Request your fare"}
+                  : selectedCategory?.pricing_type === "unclassified"
+                    ? "Pricing Not Classified"
+                    : "Request your fare"}
               </h2>
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
                 {selectedCategory?.pricing_type === "price_on_request"
-                  ? `The selected category (${selectedCategory.name}) requires a custom quotation. Online quote requests for this category are not connected yet.`
-                  : "Your route, vehicle and travel requirements will be priced using the current DC Cabs server-side rate configuration. No fare is estimated in this browser."}
+                  ? `The catalog identifies ${selectedCategory.name} as price-on-request. Online enquiry submission is not available yet; no request has been sent.`
+                  : selectedCategory?.pricing_type === "unclassified"
+                    ? `The catalog has not classified ${selectedCategory.name} for online pricing. No quote or checkout is available for this category.`
+                    : "Your route, vehicle and travel requirements will be priced using the current DC Cabs server-side rate configuration. No fare is estimated in this browser."}
               </p>
               <div className="mt-8 border-y border-border">
-                <JourneyRow
-                  label="Journey"
-                  value={enquiryRoute}
-                  onEdit={() => setStep(1)}
-                />
+                <JourneyRow label="Journey" value={enquiryRoute} onEdit={() => setStep(1)} />
                 <JourneyRow
                   label="Vehicle"
                   value={
@@ -1135,7 +1221,11 @@ function BookingPage() {
                   value={
                     selectedCategory?.pricing_type === "price_on_request"
                       ? "Price on Request"
-                      : "Server rate card"
+                      : selectedCategory?.pricing_type === "unclassified"
+                        ? "Classification pending"
+                        : quote
+                          ? "Server-generated fare"
+                          : "Awaiting server quote"
                   }
                   onEdit={() => setStep(2)}
                 />
@@ -1143,28 +1233,38 @@ function BookingPage() {
                   label="Route estimate"
                   value={
                     routeEstimate
-                      ? `${routeEstimate.distanceKm.toFixed(1)} km · ${Math.round(routeEstimate.durationHours * 60)} min`
+                      ? `${routeEstimate.distanceKm.toFixed(1)} km · estimated ${Math.round(routeEstimate.durationHours * 60)} min drive`
                       : "Unavailable"
                   }
                   onEdit={() => setStep(1)}
                 />
               </div>
 
-              {selectedCategory?.pricing_type === "price_on_request" ? (
+              {!canUseOnlineCheckout(selectedCategory) ? (
                 <div className="mt-6 border border-primary/50 bg-primary/5 p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="eyebrow text-primary">Custom Quotation</p>
+                      <p className="eyebrow text-primary">
+                        {selectedCategory?.pricing_type === "price_on_request"
+                          ? "Custom Quotation"
+                          : "Pricing Classification"}
+                      </p>
                       <p className="mt-1 font-display text-2xl font-bold uppercase">
-                        Price on Request
+                        {selectedCategory?.pricing_type === "price_on_request"
+                          ? "Price on Request"
+                          : "Not Yet Classified"}
                       </p>
                     </div>
                     <span className="border border-primary px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary">
-                      On Request
+                      {selectedCategory?.pricing_type === "price_on_request"
+                        ? "On Request"
+                        : "Unavailable"}
                     </span>
                   </div>
                   <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                    No request has been submitted. Use the contact link below to reach the DC Cabs team.
+                    {selectedCategory?.pricing_type === "price_on_request"
+                      ? "No request has been submitted. Use the contact link below to reach the DC Cabs team."
+                      : "The catalog does not yet identify this category as fixed-price or price-on-request. Online quotes are disabled until verified catalog data is available."}
                   </p>
                 </div>
               ) : null}
@@ -1179,6 +1279,7 @@ function BookingPage() {
                   to="/contact"
                   search={{
                     type: "Other",
+                    ...(selectedCategory?.name ? { vehicle: selectedCategory.name } : {}),
                     route: enquiryRoute,
                     date: pickupDate,
                     travelers: String(passengers),
@@ -1197,26 +1298,35 @@ function BookingPage() {
                 >
                   Back
                 </button>
-                {selectedCategory?.pricing_type === "price_on_request" ? (
+                {!canUseOnlineCheckout(selectedCategory) ? (
                   <Link
                     to="/contact"
                     search={{
                       type: "Other",
+                      ...(selectedCategory?.name ? { vehicle: selectedCategory.name } : {}),
                       route: enquiryRoute,
                       date: pickupDate,
                       travelers: String(passengers),
-                      message: `Price-on-request category enquiry: ${selectedCategory.name}. Pickup time: ${pickupTime}.`,
+                      message:
+                        selectedCategory?.pricing_type === "price_on_request"
+                          ? `Price-on-request category enquiry: ${selectedCategory.name}. Pickup time: ${pickupTime}.`
+                          : `Pricing classification is unavailable for ${selectedCategory?.name ?? "this category"}. Pickup time: ${pickupTime}.`,
                     }}
                     className="bg-primary px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground hover:bg-primary-tint"
                   >
-                    Contact DC Cabs
+                    {selectedCategory?.pricing_type === "price_on_request"
+                      ? "Contact DC Cabs"
+                      : "Ask DC Cabs about availability"}
                   </Link>
                 ) : hasUnsupportedIntermediateStops(stops) ? (
                   <div className="text-sm text-muted-foreground">
                     <p role="status" className="mb-2">
-                      Online quotes cannot include intermediate stops yet. Remove the stops before requesting a fare.
+                      Online quotes cannot include intermediate stops yet. Remove the stops before
+                      requesting a fare.
                     </p>
-                    <button type="button" onClick={() => setStep(1)} className="underline">Edit journey</button>
+                    <button type="button" onClick={() => setStep(1)} className="underline">
+                      Edit journey
+                    </button>
                   </div>
                 ) : (
                   <button
@@ -1246,13 +1356,11 @@ function BookingPage() {
               </p>
               <div className="mt-5 border border-border px-4 py-5">
                 <p className="eyebrow">Route preview</p>
-                <p className="mt-3 text-sm">
-                  {enquiryRoute}
-                </p>
+                <p className="mt-3 text-sm">{enquiryRoute}</p>
                 {routeEstimate ? (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {routeEstimate.distanceKm.toFixed(1)} km ·{" "}
-                    {Math.round(routeEstimate.durationHours * 60)} min by road
+                    {routeEstimate.distanceKm.toFixed(1)} km · Estimated drive time:{" "}
+                    {Math.round(routeEstimate.durationHours * 60)} min
                   </p>
                 ) : null}
               </div>
@@ -1289,10 +1397,19 @@ function BookingPage() {
                     autoComplete="name"
                     maxLength={120}
                     required
+                    aria-invalid={showCustomerErrors && Boolean(customerErrors.name)}
+                    aria-describedby={
+                      showCustomerErrors && customerErrors.name ? "customer-name-error" : undefined
+                    }
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     className="mt-2 w-full border border-border bg-background px-4 py-4 focus:border-primary focus:outline-none"
                   />
+                  {showCustomerErrors && customerErrors.name ? (
+                    <span id="customer-name-error" className="mt-1 block text-xs text-destructive">
+                      {customerErrors.name}
+                    </span>
+                  ) : null}
                 </label>
                 <label className="block text-sm">
                   <span className="eyebrow">Email</span>
@@ -1301,10 +1418,21 @@ function BookingPage() {
                     autoComplete="email"
                     maxLength={254}
                     required
+                    aria-invalid={showCustomerErrors && Boolean(customerErrors.email)}
+                    aria-describedby={
+                      showCustomerErrors && customerErrors.email
+                        ? "customer-email-error"
+                        : undefined
+                    }
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     className="mt-2 w-full border border-border bg-background px-4 py-4 focus:border-primary focus:outline-none"
                   />
+                  {showCustomerErrors && customerErrors.email ? (
+                    <span id="customer-email-error" className="mt-1 block text-xs text-destructive">
+                      {customerErrors.email}
+                    </span>
+                  ) : null}
                 </label>
                 <label className="block text-sm">
                   <span className="eyebrow">Phone</span>
@@ -1313,10 +1441,21 @@ function BookingPage() {
                     autoComplete="tel"
                     maxLength={32}
                     required
+                    aria-invalid={showCustomerErrors && Boolean(customerErrors.phone)}
+                    aria-describedby={
+                      showCustomerErrors && customerErrors.phone
+                        ? "customer-phone-error"
+                        : undefined
+                    }
                     value={phone}
                     onChange={(event) => setPhone(event.target.value)}
                     className="mt-2 w-full border border-border bg-background px-4 py-4 focus:border-primary focus:outline-none"
                   />
+                  {showCustomerErrors && customerErrors.phone ? (
+                    <span id="customer-phone-error" className="mt-1 block text-xs text-destructive">
+                      {customerErrors.phone}
+                    </span>
+                  ) : null}
                 </label>
                 <label className="block text-sm">
                   <span className="eyebrow">
@@ -1355,18 +1494,35 @@ function BookingPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={
-                    !name.trim() ||
-                    !email.includes("@") ||
-                    phone.replace(/\D/g, "").length < 7 ||
-                    (selectedCategory?.pricing_type !== "price_on_request" && quoteExpired)
+                  aria-describedby={
+                    showCustomerErrors && !customerDetailsValid
+                      ? "customer-details-errors"
+                      : undefined
                   }
-                  onClick={() => setStep(5)}
+                  onClick={() => {
+                    setShowCustomerErrors(true);
+                    if (
+                      customerDetailsValid &&
+                      canUseOnlineCheckout(selectedCategory) &&
+                      Boolean(quote && !quoteExpired)
+                    ) {
+                      setStep(5);
+                    }
+                  }}
                   className="bg-primary px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground disabled:opacity-40"
                 >
                   Review journey
                 </button>
               </div>
+              {showCustomerErrors && !customerDetailsValid ? (
+                <div
+                  id="customer-details-errors"
+                  role="alert"
+                  className="mt-5 border border-border p-4 text-sm"
+                >
+                  Please correct the highlighted contact details before reviewing your booking.
+                </div>
+              ) : null}
             </div>
             {selectedCategory?.pricing_type === "price_on_request" ? (
               <div className="self-start border border-border bg-charcoal p-6">
@@ -1390,7 +1546,9 @@ function BookingPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Route</span>
-                    <span className="text-right">{pickupLabel} → {destinationLabel}</span>
+                    <span className="text-right">
+                      {pickupLabel} → {destinationLabel}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Pricing</span>
@@ -1398,7 +1556,8 @@ function BookingPage() {
                   </div>
                 </div>
                 <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
-                  No automated charge is applied. Our team will review your requirements and provide a direct quotation.
+                  No enquiry has been submitted. The online form cannot send price-on-request
+                  enquiries yet; contact DC Cabs directly to send your requirements.
                 </p>
               </div>
             ) : (
@@ -1428,14 +1587,10 @@ function BookingPage() {
                 Review your itinerary
               </h2>
               <div className="mt-7 border-t border-border">
-                <JourneyRow
-                  label="Journey"
-                  value={enquiryRoute}
-                  onEdit={() => setStep(1)}
-                />
+                <JourneyRow label="Journey" value={enquiryRoute} onEdit={() => setStep(1)} />
                 <JourneyRow
                   label="Date & time"
-                  value={`${pickupDate} · ${pickupTime}`}
+                  value={`${pickupDate} · ${pickupTime}${selectedCity ? ` (${selectedCity.name} local time)` : ""}`}
                   onEdit={() => setStep(1)}
                 />
                 <JourneyRow
@@ -1456,8 +1611,10 @@ function BookingPage() {
                   label="Pricing"
                   value={
                     selectedCategory?.pricing_type === "price_on_request"
-                      ? "Price on Request (Quotation provided directly by DC Cabs)"
-                      : "Server rate card quote"
+                      ? "Price on Request (enquiry not submitted)"
+                      : selectedCategory?.pricing_type === "unclassified"
+                        ? "Pricing classification pending"
+                        : "Server-generated fare quote"
                   }
                   onEdit={() => setStep(3)}
                 />
@@ -1467,7 +1624,7 @@ function BookingPage() {
                   onEdit={() => setStep(4)}
                 />
               </div>
-              {selectedCategory?.pricing_type !== "price_on_request" && quoteExpired ? (
+              {canUseOnlineCheckout(selectedCategory) && quoteExpired ? (
                 <p role="alert" className="mt-5 border border-primary/50 p-4 text-sm">
                   <span className="eyebrow text-primary">Quote expired</span>
                   <br />
@@ -1489,7 +1646,9 @@ function BookingPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={busy || !quote || quoteExpired || selectedCategory?.pricing_type === "price_on_request"}
+                  disabled={
+                    busy || !canUseOnlineCheckout(selectedCategory) || !quote || quoteExpired
+                  }
                   onClick={() => void createBooking()}
                   className="bg-primary px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground disabled:opacity-40"
                 >
@@ -1523,7 +1682,8 @@ function BookingPage() {
                   </div>
                 </div>
                 <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
-                  Our operations team will review your itinerary and send an official DC Cabs quotation.
+                  No enquiry has been submitted and no team notification was sent. Contact DC Cabs
+                  directly to send your requirements.
                 </p>
               </div>
             ) : (
@@ -1568,6 +1728,7 @@ function BookingPage() {
                   to="/contact"
                   search={{
                     type: "Other",
+                    ...(selectedCategory?.name ? { vehicle: selectedCategory.name } : {}),
                     route: enquiryRoute,
                     date: pickupDate,
                     travelers: String(passengers),
@@ -1648,7 +1809,9 @@ function QuotePanel({
           {allowances?.["includedHours"] != null ? (
             <div className="flex justify-between">
               <span>Included duration:</span>
-              <span className="font-medium text-foreground">{allowances["includedHours"]} hours</span>
+              <span className="font-medium text-foreground">
+                {allowances["includedHours"]} hours
+              </span>
             </div>
           ) : null}
           {inputs?.["distanceKm"] != null ? (

@@ -270,7 +270,9 @@ describe("LocationSearch catalog validation with pluggable geocoding", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const onChange = await startCityScopedSearch();
-    fireEvent.click(await screen.findByRole("option", { name: /Use “Unlisted Address” as a custom address/i }));
+    fireEvent.click(
+      await screen.findByRole("option", { name: /Use “Unlisted Address” as a custom address/i }),
+    );
 
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({

@@ -1,6 +1,6 @@
 import type { CatalogLocation } from "@/components/booking/catalog-location-match";
 
-export type SupportedCity = { id: string; name: string };
+export type SupportedCity = { id: string; name: string; timezone: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -40,14 +40,21 @@ export async function loadSupportedCities(fetcher: typeof fetch = fetch): Promis
   if (
     !cityRows.every(
       (city) =>
-        isRecord(city) && typeof city["id"] === "string" && typeof city["name"] === "string",
+        isRecord(city) &&
+        typeof city["id"] === "string" &&
+        typeof city["name"] === "string" &&
+        typeof city["timezone"] === "string",
     )
   ) {
     throw new Error("Supported cities could not be loaded from the DC Cabs catalog.");
   }
   return cityRows.map((city) => {
     const row = city as Record<string, unknown>;
-    return { id: row["id"] as string, name: row["name"] as string };
+    return {
+      id: row["id"] as string,
+      name: row["name"] as string,
+      timezone: row["timezone"] as string,
+    };
   });
 }
 

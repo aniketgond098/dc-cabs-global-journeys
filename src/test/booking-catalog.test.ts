@@ -11,10 +11,12 @@ describe("booking catalog loaders", () => {
       .mockResolvedValueOnce(
         response({ data: [{ id: "india-country", iso2: "IN", name: "India" }] }),
       )
-      .mockResolvedValueOnce(response({ data: [{ id: "mumbai-city", name: "Mumbai" }] }));
+      .mockResolvedValueOnce(
+        response({ data: [{ id: "mumbai-city", name: "Mumbai", timezone: "Asia/Kolkata" }] }),
+      );
 
     await expect(loadSupportedCities(fetcher)).resolves.toEqual([
-      { id: "mumbai-city", name: "Mumbai" },
+      { id: "mumbai-city", name: "Mumbai", timezone: "Asia/Kolkata" },
     ]);
     expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
       "/api/v1/catalog/countries",
@@ -30,6 +32,16 @@ describe("booking catalog loaders", () => {
 
   it("treats malformed country catalog data as an error", async () => {
     const fetcher = vi.fn().mockResolvedValue(response({ data: [{ id: "not-a-country" }] }));
+    await expect(loadSupportedCities(fetcher)).rejects.toThrow(/catalog/i);
+  });
+
+  it("rejects city catalog rows without their authoritative timezone", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ data: [{ id: "india-country", iso2: "IN", name: "India" }] }),
+      )
+      .mockResolvedValueOnce(response({ data: [{ id: "mumbai-city", name: "Mumbai" }] }));
     await expect(loadSupportedCities(fetcher)).rejects.toThrow(/catalog/i);
   });
 

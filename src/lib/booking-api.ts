@@ -570,7 +570,7 @@ export async function handleCatalog(
       const { data, error: dbError } = await database
         .from("city_vehicle_categories")
         .select(
-          "city_id,vehicle_category_id,is_available,valid_from,valid_until,vehicle_categories!inner(id,code,name,passenger_capacity,luggage_capacity,display_order)",
+          "city_id,vehicle_category_id,is_available,valid_from,valid_until,vehicle_categories!inner(id,code,name,passenger_capacity,luggage_capacity,pricing_type,display_order)",
         )
         .eq("city_id", cityId)
         .eq("is_available", true)

@@ -138,6 +138,49 @@ describe("catalog endpoints", () => {
     expect(calls[0]?.operations).toContainEqual(["limit", 10]);
   });
 
+  it("reads pricing classification from the active vehicle catalog", async () => {
+    const cityId = "00000000-0000-4000-8000-000000000001";
+    const { database, calls } = makeDatabase({
+      tableResults: {
+        cities: { data: { id: cityId }, error: null },
+        city_vehicle_categories: {
+          data: [
+            {
+              vehicle_category_id: "00000000-0000-4000-8000-000000000002",
+              vehicle_categories: {
+                id: "00000000-0000-4000-8000-000000000002",
+                pricing_type: "unclassified",
+              },
+            },
+          ],
+          error: null,
+        },
+      },
+    });
+
+    const response = await handleCatalog(
+      new Request(
+        `https://site.test/api/v1/catalog/vehicle-categories?city_id=${cityId}&pickup_at=${encodeURIComponent(new Date(Date.now() + 86_400_000).toISOString())}`,
+      ),
+      "vehicle-categories",
+      database,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      data: [{ vehicle_categories: { pricing_type: "unclassified" } }],
+    });
+    const vehicleQuery = calls.find((call) => call.from === "city_vehicle_categories");
+    const includesPricingType = vehicleQuery?.operations.some(
+      (operation) =>
+        Array.isArray(operation) &&
+        operation[0] === "select" &&
+        typeof operation[1] === "string" &&
+        operation[1].includes("pricing_type"),
+    );
+    expect(includesPricingType).toBe(true);
+  });
+
   it("logs redacted Supabase diagnostics while returning a generic database error", async () => {
     const supabaseUrl = "https://example.supabase.co";
     const configuredSupabaseUrl = ` ${supabaseUrl}/ `;

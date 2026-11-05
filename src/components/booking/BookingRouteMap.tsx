@@ -108,6 +108,22 @@ export function BookingRouteMap({
   const stopCoordinates = activeStops
     .map((s) => s?.coordinates ?? null)
     .filter((c): c is [number, number] => Boolean(c));
+  const routeInputsRef = useRef({
+    activeStops,
+    destination,
+    destinationCoordinates,
+    pickup,
+    pickupCoordinates,
+    stopCoordinates,
+  });
+  routeInputsRef.current = {
+    activeStops,
+    destination,
+    destinationCoordinates,
+    pickup,
+    pickupCoordinates,
+    stopCoordinates,
+  };
 
   const pickupKey = pickupCoordinates ? `${pickupCoordinates[0]},${pickupCoordinates[1]}` : "";
   const destinationKey = destinationCoordinates
@@ -131,6 +147,14 @@ export function BookingRouteMap({
   useEffect(() => {
     if (!containerRef.current) return;
     let disposed = false;
+    const {
+      activeStops,
+      destination,
+      destinationCoordinates,
+      pickup,
+      pickupCoordinates,
+      stopCoordinates,
+    } = routeInputsRef.current;
 
     if ((pickup && !pickupCoordinates) || (destination && !destinationCoordinates)) return;
     if (!pickupCoordinates && !destinationCoordinates) return;
