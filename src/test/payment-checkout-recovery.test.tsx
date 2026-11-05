@@ -39,11 +39,16 @@ describe("payment checkout recovery", () => {
           id: "00000000-0000-4000-8000-000000000001",
           bookingReference: "DC-TEST",
           currency: "INR",
-          total: 100,
+          subtotal: 100,
+          tax: 5,
+          total: 105,
           paymentAccessToken: "test-payment-token",
         }}
       />,
     );
+    expect(screen.getByText("Fare subtotal")).toBeInTheDocument();
+    expect(screen.getByText("GST")).toBeInTheDocument();
+    expect(screen.getByText("Total payable")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /pay securely/i }));
     await waitFor(() => expect(options).toBeDefined());
 

@@ -30,6 +30,8 @@ type Booking = {
   id: string;
   bookingReference: string;
   currency: string;
+  subtotal?: number;
+  tax?: number;
   total: number;
   paymentAccessToken?: string;
   customer: { fullName: string; email: string; phone: string };

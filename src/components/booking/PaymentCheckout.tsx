@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BusinessGstInformation } from "@/components/site/BusinessGstInformation";
 
 declare global {
   interface Window {
@@ -13,6 +14,8 @@ type BookingPayment = {
   id: string;
   bookingReference: string;
   currency: string;
+  subtotal?: number;
+  tax?: number;
   total: number;
   paymentAccessToken: string;
   customer?: { fullName?: string; email?: string; phone?: string };
@@ -132,10 +135,30 @@ export function PaymentCheckout({ booking }: { booking: BookingPayment }) {
   return (
     <div className="border border-border bg-charcoal p-6">
       <p className="eyebrow text-primary">Secure payment</p>
-      <p className="mt-4 font-display text-3xl font-bold">
+      <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Total payable
+      </p>
+      <p className="mt-1 font-display text-3xl font-bold">
         {booking.currency} {booking.total.toFixed(2)}
       </p>
+      {booking.subtotal !== undefined && booking.tax !== undefined ? (
+        <dl className="mt-4 space-y-2 border-t border-border/70 pt-4 text-sm">
+          <div className="flex justify-between gap-4 text-muted-foreground">
+            <dt>Fare subtotal</dt>
+            <dd>
+              {booking.currency} {booking.subtotal.toFixed(2)}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-4 text-muted-foreground">
+            <dt>GST</dt>
+            <dd>
+              {booking.currency} {booking.tax.toFixed(2)}
+            </dd>
+          </div>
+        </dl>
+      ) : null}
       <p className="mt-2 text-sm text-muted-foreground">Booking {booking.bookingReference}</p>
+      <BusinessGstInformation compact />
       <button
         type="button"
         onClick={() => void startCheckout()}

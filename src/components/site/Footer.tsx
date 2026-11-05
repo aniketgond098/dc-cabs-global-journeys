@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { contact, footerDestinations, nav } from "@/content/site";
+import { BusinessGstInformation } from "./BusinessGstInformation";
 import { Logo } from "./Navbar";
 
 export function Footer() {
@@ -12,7 +13,9 @@ export function Footer() {
             Pan-India & International <br />
             <span className="text-muted-foreground">Corporate Mobility & Travel Solutions</span>
           </p>
-          <p className="mt-6 max-w-md text-sm leading-relaxed text-muted-foreground">{footerDestinations}</p>
+          <p className="mt-6 max-w-md text-sm leading-relaxed text-muted-foreground">
+            {footerDestinations}
+          </p>
         </div>
 
         <div className="md:col-span-3">
@@ -20,7 +23,9 @@ export function Footer() {
           <ul className="space-y-3 text-sm">
             {nav.map((n) => (
               <li key={n.to}>
-                <Link to={n.to} className="text-foreground/75 transition-colors hover:text-primary">{n.label}</Link>
+                <Link to={n.to} className="text-foreground/75 transition-colors hover:text-primary">
+                  {n.label}
+                </Link>
               </li>
             ))}
           </ul>
@@ -29,14 +34,35 @@ export function Footer() {
         <div className="md:col-span-4">
           <p className="eyebrow mb-5">Contact</p>
           <ul className="space-y-3 text-sm">
-            <li className="text-foreground">{contact.person}<span className="block text-muted-foreground">{contact.role}</span></li>
-            <li><a href={contact.phoneHref} className="text-foreground/75 hover:text-primary">{contact.phoneDisplay}</a></li>
-            <li><a href={contact.whatsappHref} target="_blank" rel="noreferrer" className="text-foreground/75 hover:text-primary">WhatsApp</a></li>
-            <li><a href={`mailto:${contact.email}`} className="text-foreground/75 hover:text-primary">{contact.email}</a></li>
+            <li className="text-foreground">
+              {contact.person}
+              <span className="block text-muted-foreground">{contact.role}</span>
+            </li>
+            <li>
+              <a href={contact.phoneHref} className="text-foreground/75 hover:text-primary">
+                {contact.phoneDisplay}
+              </a>
+            </li>
+            <li>
+              <a
+                href={contact.whatsappHref}
+                target="_blank"
+                rel="noreferrer"
+                className="text-foreground/75 hover:text-primary"
+              >
+                WhatsApp
+              </a>
+            </li>
+            <li>
+              <a href={`mailto:${contact.email}`} className="text-foreground/75 hover:text-primary">
+                {contact.email}
+              </a>
+            </li>
             <li className="text-foreground/75">45+ cities across India</li>
           </ul>
         </div>
       </div>
+      <BusinessGstInformation />
       <div className="border-t border-border">
         <div className="container-x flex flex-col justify-between gap-2 py-6 text-xs text-muted-foreground sm:flex-row">
           <p>© {new Date().getFullYear()} DC Cabs. All rights reserved.</p>
